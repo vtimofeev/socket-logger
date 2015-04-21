@@ -1,0 +1,12 @@
+#common
+.DS_Store
+.idea
+**.swp
+.
+
+# local parts
+/local
+/public/l
+
+# modules
+node_modules*
