@@ -1,4 +1,5 @@
-if (typeof module !== 'undefined') {
+var isNode = typeof module !== 'undefined';
+if (isNode) {
   var _ = require('underscore');
   var io = require('socket.io-client');
   var debug = true;
@@ -14,7 +15,8 @@ var SocketLogger = {
     INFO: 'info',
     DATA: 'data',
     SOCKETS: 'sockets',
-    CLEAN: 'clean'
+    CLEAN: 'clean',
+    RELOAD: 'reload'
   },
   getLocalStorage: function () {
     try {
