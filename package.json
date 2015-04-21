@@ -1,0 +1,24 @@
+{
+  "name": "socket-logger",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "commander": "^2.8.0",
+    "express": "^4.12.3",
+    "express-static": "^1.0.3",
+    "socket.io": "^1.3.5",
+    "socket.io-client": "^1.3.5",
+    "underscore": "^1.8.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "gulp test"
+  },
+  "keywords": [
+    "socket",
+    "logger"
+  ],
+  "author": "Vasily Timofeev",
+  "license": "ISC"
+}
