@@ -1,15 +1,18 @@
 var $root = $('.root');
-var $status = $('.status');
+var $status = $('.socketStatus');
+var $id = $('.socketId');
 var $clean = $('.clean');
 var $sockets = $('.sockets');
-var $log = $('.log');
+
+var $log = $('.logContainer');
 var waitTimeout = 0;
 var rootScroll = 0;
 var ti = 0;
-
+var filtredClientId = '';
 var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004', socketConnectHandler, socketMessageHandler, socketCommandHandler);
 
 function socketConnectHandler(value) {
+  $id.html(socket.id);
   $status.html(value ? 'connected' : 'disconnected');
 }
 
@@ -18,12 +21,40 @@ function socketMessageHandler(message) {
   var DataType = SocketLogger.DataType;
   switch (type) {
     case DataType.SOCKETS:
-      $sockets.html(_.map(message.data || [], function (item) { return 'client_id: ' + item.client_id + ', ua ' + item.ua; }).join('<br />'));
-      $log.html('');
+      $sockets.html('');
+      var $li_items = [];
+      var items = _.union([{client_id: null}], message.data);
+
+      var $ul = _.reduce(
+        _.map(items || [],
+          function mapItems(item) {
+            var uaData = UAParser(item.ua);
+            console.log(item.ua, uaData);
+            var content = item.client_id?('id: ' + item.client_id + ', ' + uaData.browser.name + ' ' + uaData.browser.version + ', '  + uaData.os.name):'Очистить';
+            var $li = $('<div>' + content + '</div>');
+            $li.bind('click', $.proxy(getFilterHandler(item, $li_items), $li));
+            $li_items.push($li)
+            var isSelected = item.client_id === filtredClientId;
+            $li.toggleClass('selected', isSelected);
+            return $li;
+          }),
+        function reduceItems($s, $i) {
+          $s.append($i);
+          return $s;
+        },
+        $('<div></div>')
+      );
+
+
+
+      var hasFiltred = _.filter(message.data, function(item) { return item.client_id === filtredClientId });
+      setFilter(hasFiltred?filtredClientId:null);
+      $sockets.append($ul);
       break;
     default:
       ti++;
-      $log.prepend(type + ', ' + message.data + '<br/>');
+      var add = (filtredClientId && filtredClientId === message.client_id) || !filtredClientId;
+      if(add) $log.prepend($('<div class="' + message.type + '">' + message.data + '</div>'));
       break;
   }
 }
@@ -32,11 +63,32 @@ function socketCommandHandler(message) {
   var type = message ? message.type : null;
   var CommandType = SocketLogger.CommandType;
 
+  var execute = (filtredClientId && filtredClientId === message.client_id) || !filtredClientId;
+  if(!execute) return;
+
   switch(type) {
     case CommandType.CLEAN:
       $log.html('');
       break;
   }
+
+  $log.prepend($('<div class="command">' + type + '</div>'));
+}
+
+function getFilterHandler(item, $li_items) {
+  return function() {
+    _.each($li_items, function($li) {
+      $li.toggleClass('selected', false);
+    });
+    setFilter(item.client_id);
+    if(item.client_id) this.toggleClass('selected', true);
+  };
+}
+
+function setFilter(id) {
+  if(filtredClientId === id) return;
+  filtredClientId = id;
+  $log.html('');
 }
 
 $clean.bind('click', function () {

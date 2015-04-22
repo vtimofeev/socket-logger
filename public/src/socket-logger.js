@@ -112,14 +112,18 @@ var SocketLogger =  {
       socket.emit(SocketLogger.Event.COMMAND, {type: type, data: value || null});
     }
 
+    function getClientId() {
+      return client_id;
+    }
+
     SocketLogger.log('Socket created ' + client_id);
     var statInterval = setInterval(function() {
       SocketLogger.log('Socket', client_id, 'connected', socket.connected, ', total in', stat.in, 'out', stat.out);
     }, 5000);
 
-
     return {
       stat: stat,
+      id: getClientId(),
       log: getTypedDataEmit(SocketLogger.DataType.LOG),
       warn: getTypedDataEmit(SocketLogger.DataType.WARN),
       error: getTypedDataEmit(SocketLogger.DataType.ERR),

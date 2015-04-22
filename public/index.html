@@ -7,12 +7,61 @@
 
 <head lang="en">
     <meta charset="UTF-8">
-    <title></title>
+    <title>Socket-logger application</title>
 </head>
 <style>
     body {
         margin: 0;
         padding: 0;
+        padding-left: 12px;
+        font-size: 12px;
+        line-height: 21px;;
+        font-family: "Trebuchet MS", sans-serif;
+    }
+
+    header {
+        font-weight: bold;
+        font-size: 15px;
+        line-height: 24px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+    }
+
+    header .clean {
+        margin-left: 40px;
+    }
+
+    .sockets {
+        border-left: 1px solid #0072C6;
+        max-height: 240px;
+        padding: 8px;
+    }
+
+    .sockets ul li {
+        height: 32px;
+        line-height: 32px;
+    }
+
+    .sockets .selected {
+        background-color: #0072C6;
+    }
+
+    .logContainer {
+        margin-top: 12px;
+        font-size: 11px;
+        line-height: 19px;
+    }
+
+    .logContainer .log {
+    }
+    .logContainer .warn {
+        background-color: yellow;
+    }
+    .logContainer .error {
+        background-color: #eb5183;
+    }
+    .logContainer .command {
+        background-color: yellowgreen;
     }
 
     .root {
@@ -50,16 +99,17 @@
 </div></div>
 
 <header>
-    Socket: <span class="status"></span> <button class="clean">Clean</button>
+    Socket <span class="socketId"></span> <span class="socketStatus"></span> <button class="clean">Clean all server data</button>
 </header>
+
 <div class="sockets"></div>
-<div class="log"></div>
+<div class="logContainer"></div>
 
 <script src="libs/zepto.js"></script>
 <script src="libs/fx.js"></script>
 <script src="libs/touch.js"></script>
 <script src="libs/underscore.js"></script>
-
+<script src="libs/ua-parser.min.js"></script>
 <script src="libs/socket.io.js"></script>
 <script src="src/socket-logger.js"></script>
 <script src="script.js"></script>
