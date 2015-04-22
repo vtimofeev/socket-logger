@@ -8,19 +8,21 @@ function createSocket() {
 
   var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004',
     function connectHandler(v) {
-      if(v) emitTestMessage(v);
+      emitTestMessage(v);
     }
   );
 
   function emitTestMessage(v) {
-    if (!v) {
+    if (!v || mt) {
       clearTimeout(mt);
-      return;
     }
+
+    //if(!v) return;
+
     mt = setTimeout(function () {
       socket.log('testdata, send by this ' + (i++) + ', total send by instance test app ' + (ti++) + ', in messages per this ' + socket.stat.in);
       emitTestMessage(v);
-    }, 500);
+    }, 1000);
   };
 }
 

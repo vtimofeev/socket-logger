@@ -43,7 +43,10 @@ var SocketLogger = {
     });
   },
   updateSockets: function(){
-    SocketLogger.sendMessageToAll({type: SocketLogger.DataType.SOCKETS, data:  _.map(sockets, function(socket) { return socket.info; }) });
+    var data =  _.map(sockets, function(socket) { return socket.info; });
+    SocketLogger.sendMessageToAll({type: SocketLogger.DataType.SOCKETS, data: data });
+    console.log('Update sockets ', data);
+
   },
   sendMessageToAll: function(message) {
     io.emit(SocketLogger.Event.DATA, message);
@@ -58,8 +61,10 @@ var SocketLogger = {
         case SocketLogger.DataType.INFO:
         {
           socket.info = message.data;
-          sockets.push(socket);
-          SocketLogger.updateSockets();
+          if (sockets.indexOf(socket) === -1) {
+            sockets.push(socket);
+            SocketLogger.updateSockets();
+          }
           break;
         }
         default:

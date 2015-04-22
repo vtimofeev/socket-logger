@@ -52,57 +52,71 @@ var SocketLogger =  {
     var client_id = opt_clientId || SocketLogger.getClientId();
     var socket = io(connectionString);
     var stat = { in: 0, out: 0 };
-    var statInterval = setInterval(function() {
-      SocketLogger.log('Socket ' , client_id, ' total in ', stat.in, ' out ', stat.out);
-    }, 5000);
 
-    socket.on('connect', function () {
-      SocketLogger.log('Socket connected');
-      emit({type: SocketLogger.DataType.INFO, data: {client_id: client_id, ua: navigator.userAgent}});
-      if (connectHandler) connectHandler(true);
-    });
+    socket.on('connect', getSocketConnectHandler('connect'));
+    socket.on('reconnect', getSocketConnectHandler('reconnect'));
 
     socket.on(SocketLogger.Event.DATA, function (message) {
       stat.in++;
+      SocketLogger.log('Data in');
       if (messageHandler) messageHandler(message, SocketLogger.Event.DATA);
     });
 
     socket.on(SocketLogger.Event.COMMAND, function (message) {
       stat.in++;
+      SocketLogger.log('Command in');
       var handler = commandHandler || messageHandler;
       if (handler) handler(message, SocketLogger.Event.COMMAND);
     });
+
 
     socket.on('disconnect', function () {
       if (connectHandler) connectHandler(false);
       SocketLogger.log('Socket disconnected');
     });
 
-    socket.on('error', function () {
-      if (connectHandler) connectHandler(false);
-      SocketLogger.log('Socket error');
-    });
+    socket.on('error', getSocketErrorHandler('error'));
+    socket.on('reconnect_error' , getSocketErrorHandler('reconnect_error'));
+    socket.on('reconnect_failed', getSocketErrorHandler('reconnect_failed'));
 
-    function emit(data) {
-      stat.out++;
-      //SocketLogger.log('Emit', data);
-      socket.emit(SocketLogger.Event.DATA, data);
+    function getSocketErrorHandler(type) {
+      return function() {
+        if (connectHandler) connectHandler(false);
+        SocketLogger.log('Socket error with ' + type);
+      }
     }
 
-    function command(type, value) {
-      SocketLogger.log('Command emit', type, value);
-      socket.emit(SocketLogger.Event.COMMAND, {type: type, data: value || null});
+    function getSocketConnectHandler(type) {
+      return function() {
+        SocketLogger.log('Socket connected with ' + type);
+        emit({type: SocketLogger.DataType.INFO, data: {client_id: client_id, ua: navigator.userAgent}});
+        if (connectHandler) connectHandler(true);
+      }
     }
 
     function getTypedDataEmit(type) {
       return function() {
         var value = (Array.prototype.slice.call(arguments)).join(', ');
-        //SocketLogger.log('Typed emit', type, value);
         emit({type: type, data: value})
       }
     }
 
-    SocketLogger.log('Socket inited');
+    function emit(data) {
+      stat.out++;
+      SocketLogger.log('Emit data ', data);
+      socket.emit(SocketLogger.Event.DATA, data);
+    }
+
+    function command(type, value) {
+      SocketLogger.log('Emit command', type, value);
+      socket.emit(SocketLogger.Event.COMMAND, {type: type, data: value || null});
+    }
+
+    SocketLogger.log('Socket created ' + client_id);
+    var statInterval = setInterval(function() {
+      SocketLogger.log('Socket', client_id, 'connected', socket.connected, ', total in', stat.in, 'out', stat.out);
+    }, 5000);
+
 
     return {
       stat: stat,
