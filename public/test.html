@@ -41,21 +41,24 @@
         var $root = $(document);
         var $body = $(document.body);
         var $touch = $('<div class="touch"></div>');
-        $body.append($touch);
+        var isSupportPointerEvents = !!window.PointerEvent;
+        var isSupportTouchEvent = !!window.TouchEvent;
         var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004', socketConnectHandler);
 
         function socketConnectHandler(value) {
             $body.toggleClass('connected', value);
         }
 
-        var events = window.PointerEvent?'pointerstart pointerdown pointerup pointend pointermove pointercancel':'touchstart touchend touchcancel touchmove';
+        var events = isSupportPointerEvents?'pointerdown pointerup pointermove pointercancel':'touchstart touchend touchcancel touchmove mouseup mousedown mousemove';
+        console.log(isSupportTouchEvent);
 
+        $body.append($touch);
         $root.bind(events, function(e) {
-            console.log(e);
             var touchX = Math.round(e.clientX || (e.touches&&e.touches.length?e.touches[0].clientX: 0));
             var touchY = Math.round(e.clientY || (e.touches&&e.touches.length?e.touches[0].clientY: 0));
             $touch.css({left: touchX + 'px', top: touchY + 'px'});
             socket.log(e.type, touchX, touchY);
+            console.log(e);
         })
     }();
 
