@@ -30,7 +30,7 @@ function socketMessageHandler(message) {
           function mapItems(item) {
             var uaData = UAParser(item.ua);
             console.log(item.ua, uaData);
-            var content = item.client_id?('id: ' + item.client_id + ', ' + uaData.browser.name + ' ' + uaData.browser.version + ', '  + uaData.os.name):'Очистить';
+            var content = item.client_id?('id: ' + item.client_id + ', ' + uaData.browser.name + ' ' + uaData.browser.version + ', '  + uaData.os.name + ', ' + item.href):'Очистить';
             var $li = $('<div>' + content + '</div>');
             $li.bind('click', $.proxy(getFilterHandler(item, $li_items), $li));
             $li_items.push($li)
@@ -45,10 +45,8 @@ function socketMessageHandler(message) {
         $('<div></div>')
       );
 
-
-
-      var hasFiltred = _.filter(message.data, function(item) { return item.client_id === filtredClientId });
-      setFilter(hasFiltred?filtredClientId:null);
+      var hasFilter = _.filter(message.data, function(item) { return item.client_id === filtredClientId });
+      setFilter(hasFilter?filtredClientId:null);
       $sockets.append($ul);
       break;
     default:
@@ -92,7 +90,7 @@ function setFilter(id) {
 }
 
 $clean.bind('click', function () {
-  //$log.html('');
+  $log.html('');
   socket.command(SocketLogger.CommandType.CLEAN);
 });
 $status.html('none');

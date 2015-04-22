@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="msapplication-tap-highlight" content="no" />
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Socket-logger test page</title>
+    <style>
+        body {
+            background-color: #eb5183;
+            transition: background-color 1s ease-in;
+            overflow: hidden;
+            -ms-overflow-style: none;
+            touch-action: none;
+        }
+
+        .connected {
+            background-color: greenyellow;
+        }
+
+        .touch {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100px;
+            height: 100px;
+            margin-top: -50px;
+            margin-left: -50px;
+            background-color: #eb5183;
+        }
+    </style>
+</head>
+
+<body>
+<script src="libs/zepto.js"></script>
+<script src="libs/socket.io.js"></script>
+<script src="src/socket-logger.js"></script>
+<script>
+    var app = function() {
+        var $root = $(document);
+        var $body = $(document.body);
+        var $touch = $('<div class="touch"></div>');
+        $body.append($touch);
+        var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004', socketConnectHandler);
+
+        function socketConnectHandler(value) {
+            $body.toggleClass('connected', value);
+        }
+
+        var events = window.PointerEvent?'pointerstart pointerdown pointerup pointend pointermove pointercancel':'touchstart touchend touchcancel touchmove';
+
+        $root.bind(events, function(e) {
+            console.log(e);
+            var touchX = Math.round(e.clientX || (e.touches&&e.touches.length?e.touches[0].clientX: 0));
+            var touchY = Math.round(e.clientY || (e.touches&&e.touches.length?e.touches[0].clientY: 0));
+            $touch.css({left: touchX + 'px', top: touchY + 'px'});
+            socket.log(e.type, touchX, touchY);
+        })
+    }();
+
+</script>
+
+</body>
+</html>

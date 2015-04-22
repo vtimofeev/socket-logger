@@ -24,7 +24,7 @@ var SocketLogger =  {
     CLEAN: 'clean'
   },
   getLocalStorage: function () {
-    "use strict";
+    'use strict';
     try {
       return ('localStorage' in window && window['localStorage']) ? window['localStorage'] : null;
     } catch (e) {
@@ -32,7 +32,7 @@ var SocketLogger =  {
     }
   },
   getClientId: function () {
-    "use strict";
+    'use strict';
     var storage = SocketLogger.getLocalStorage();
     var key = SocketLogger.NS + 'ClientId';
     var randomClientId = (Math.round(Math.random()*1000000000) + Date.now()).toString(36);
@@ -48,7 +48,7 @@ var SocketLogger =  {
     return result;
   },
   getSocketClient: function (connectionString, connectHandler, messageHandler, commandHandler, opt_clientId) {
-    "use strict";
+    'use strict';
     var client_id = opt_clientId || SocketLogger.getClientId();
     var socket = io(connectionString);
     var stat = { in: 0, out: 0 };
@@ -89,7 +89,7 @@ var SocketLogger =  {
     function getSocketConnectHandler(type) {
       return function() {
         SocketLogger.log('Socket connected with ' + type);
-        emit({type: SocketLogger.DataType.INFO, data: {client_id: client_id, ua: navigator.userAgent}});
+        emit({type: SocketLogger.DataType.INFO, data: {client_id: client_id, ua: navigator.userAgent, href: (isNode?null:window.location.href) }});
         if (connectHandler) connectHandler(true);
       }
     }
