@@ -18,11 +18,13 @@ function createSocket() {
       return;
     }
     mt = setTimeout(function () {
-      socket.emit({type: SocketLogger.EventType.DATA, data: 'testdata,' + (i++) + ',' + (ti++) + ', in per socket ' + (socket.stat.in) + ',' + (socket.stat.out)} );
+      socket.log('testdata, send by this ' + (i++) + ', total send by instance test app ' + (ti++) + ', in messages per this ' + socket.stat.in);
       emitTestMessage(v);
     }, 500);
   };
 }
+
+createSocket();
 
 
 

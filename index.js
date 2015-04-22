@@ -11,52 +11,69 @@ var argv = (require('commander')).version('0.0.2')
   .parse(process.argv);
 
 var sockets = [];
-
-var SocketEvent = {
-  MESSAGE: 'message'
-};
-
-var SocketEventType = {
-  INFO: 'info',
-  DATA: 'data',
-  SOCKETS: 'sockets',
-  CLEAN: 'clean'
-};
+var data
 
 app.use(express.static('public'));
 
-function sendMessageToAll(message) {
-  io.emit(SocketEvent.MESSAGE, message);
-}
+var SocketLogger = {
+  NS: 'socketLogger',
+  Event: {
+    DATA: 'data',
+    COMMAND: 'command'
+  },
+  DataType: {
+    INFO: 'info',
+    SOCKETS: 'sockets',
+    LOG: 'log',
+    WARN: 'warn',
+    ERR: 'err'
+  },
+  CommandType: {
+    RELOAD: 'reload',
+    NEW: 'new',
+    CLEAN: 'clean'
+  },
+  connectionHandler: function(socket){
+    socket.on(SocketLogger.Event.DATA, SocketLogger.getDefaultHandler(socket, SocketLogger.sendMessageToAll));
+    socket.on(SocketLogger.Event.COMMAND, SocketLogger.getDefaultHandler(socket, SocketLogger.sendCommandToAll));
 
-function updateSockets() {
-  sendMessageToAll({ type: SocketEventType.SOCKETS, data:  _.map(sockets, function(socket) { return socket.info; }) });
-}
-
-io.on('connection', function(socket){
-  socket.on(SocketEvent.MESSAGE, function(message) {
-    var type = message?message.type:null;
-
-    switch(type) {
-      case SocketEventType.INFO: {
-        socket.info = message.data;
-        sockets.push(socket);
-        updateSockets();
-        break;
+    socket.on('disconnect' , function() {
+      sockets = _.without(sockets, socket);
+      SocketLogger.updateSockets();
+    });
+  },
+  updateSockets: function(){
+    SocketLogger.sendMessageToAll({type: SocketLogger.DataType.SOCKETS, data:  _.map(sockets, function(socket) { return socket.info; }) });
+  },
+  sendMessageToAll: function(message) {
+    io.emit(SocketLogger.Event.DATA, message);
+  },
+  sendCommandToAll: function(message) {
+    io.emit(SocketLogger.Event.COMMAND, message);
+  },
+  getDefaultHandler: function(socket, sendToAll) {
+    return function(message) {
+      var type = message ? message.type : null;
+      switch (type) {
+        case SocketLogger.DataType.INFO:
+        {
+          socket.info = message.data;
+          sockets.push(socket);
+          SocketLogger.updateSockets();
+          break;
+        }
+        default:
+        {
+          if (message && message.type) message.client_id = socket.info.client_id;
+          sendToAll(message);
+          break;
+        }
       }
-      default: {
-        if(message && message.type) message.client_id = socket.info.client_id;
-        sendMessageToAll(message);
-        break;
-      }
-    }
-  });
+    };
+  }
+};
 
-  socket.on('disconnect' , function() {
-    sockets = _.without(sockets, socket);
-    updateSockets();
-  });
-});
+io.on('connection', SocketLogger.connectionHandler);
 
 http.listen(argv.port, function(){
   console.log('listening on *:' + argv.port);

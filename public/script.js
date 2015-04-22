@@ -7,7 +7,7 @@ var waitTimeout = 0;
 var rootScroll = 0;
 var ti = 0;
 
-var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004', socketConnectHandler, socketMessageHandler);
+var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004', socketConnectHandler, socketMessageHandler, socketCommandHandler);
 
 function socketConnectHandler(value) {
   $status.html(value ? 'connected' : 'disconnected');
@@ -15,36 +15,36 @@ function socketConnectHandler(value) {
 
 function socketMessageHandler(message) {
   var type = message ? message.type : null;
-  var EventType = SocketLogger.EventType;
+  var DataType = SocketLogger.DataType;
   switch (type) {
-    case EventType.SOCKETS:
+    case DataType.SOCKETS:
       $sockets.html(_.map(message.data || [], function (item) { return 'client_id: ' + item.client_id + ', ua ' + item.ua; }).join('<br />'));
-      $log.html('');
-      break;
-    case EventType.CLEAN:
       $log.html('');
       break;
     default:
       ti++;
-      //if(ti%100 === 0) $log.prepend(ti + ', ' + message.data + '<br/> ');
-      $log.prepend(message.data + '<br/> ');
+      $log.prepend(type + ', ' + message.data + '<br/>');
       break;
   }
 }
 
+function socketCommandHandler(message) {
+  var type = message ? message.type : null;
+  var CommandType = SocketLogger.CommandType;
+
+  switch(type) {
+    case CommandType.CLEAN:
+      $log.html('');
+      break;
+  }
+}
 
 $clean.bind('click', function () {
-  $log.html('');
-  socket.emit({type: 'clean', data: null});
+  //$log.html('');
+  socket.command(SocketLogger.CommandType.CLEAN);
 });
 $status.html('none');
 
-function wait() {
-  waitTimeout = _.delay(function () {
-    socket.emit({type: 'data', data: 'wait'});
-    wait();
-  }, 10000);
-}
 
 function scroll() {
   waitTimeout = _.delay(function () {
@@ -71,11 +71,10 @@ $root.bind('scroll', function (e) {
 
 $root.bind('pointerout', function () {
   _.delay(function () {
-      socket.emit({type: 'data', data: 'animation start'});
+      socket.warn('animation start');
       $root.scrollTop(0);
-
       $root.animate({scrollTop: 100}, 500, function () {
-        socket.emit({type: 'data', data: 'animation complete'});
+        socket.warn('animation complete');
       });
       scroll();
     },
@@ -91,7 +90,7 @@ el.addEventListener("MSGestureTap", defaultHandler, false);
 el.addEventListener("MSGestureHold", defaultHandler, false);
 
 function defaultHandler(e) {
-  socket.emit({type: 'data', data: e.type + ', clientX, clientY: ' + Math.round(e.clientX) + ', ' + Math.round(e.clientY) + ', scroll ' + $root.scrollTop()});
+  socket.log(e.type , 'clientX, clientY' , Math.round(e.clientX) , Math.round(e.clientY) , ' scroll ' , $root.scrollTop());
   scroll();
 }
 
