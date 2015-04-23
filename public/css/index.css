@@ -1,0 +1,75 @@
+body {
+  margin: 0;
+  padding: 0;
+  padding-left: 12px;
+  font-size: 12px;
+  line-height: 21px;
+  font-family: "Trebuchet MS", sans-serif;
+}
+header {
+  font-weight: bold;
+  font-size: 15px;
+  line-height: 24px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+header .clean {
+  margin-left: 40px;
+}
+.sockets {
+  border-left: 1px solid #0072c6;
+  max-height: 240px;
+  padding: 8px;
+  overflow: auto;
+}
+.sockets ul > li {
+  height: 32px;
+  line-height: 32px;
+}
+.sockets .selected {
+  background-color: #0072c6;
+}
+.logContainer {
+  margin-top: 12px;
+  font-size: 11px;
+  line-height: 19px;
+}
+.logContainer .warn {
+  background-color: #ff0;
+}
+.logContainer .error {
+  background-color: #eb5183;
+}
+.logContainer .command {
+  background-color: #9acd32;
+}
+.root {
+  position: absolute;
+  z-index: 100;
+  right: 0;
+  top: 0;
+  background-color: #006;
+  width: 50%;
+  height: 50%;
+  max-width: 300px;
+  max-height: 300px;
+  overflow: auto;
+  touch-action: pan-y;
+  -ms-touch-action: pan-y;
+  -ms-scroll-chaining: none;
+  -ms-scroll-snap-y: mandatory snapInterval(0%, 100%);
+  -webkit-overflow-scrolling: touch;
+}
+.root .inner {
+  width: 100%;
+  height: 600px;
+  background: -webkit-linear-gradient(top, #81ad24 0%, #fff 100%);
+  background: -moz-linear-gradient(top, #81ad24 0%, #fff 100%);
+  background: -o-linear-gradient(top, #81ad24 0%, #fff 100%);
+  background: -ms-linear-gradient(top, #81ad24 0%, #fff 100%);
+  background: linear-gradient(to bottom, #81ad24 0%, #fff 100%);
+  opacity: 0.5;
+  -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=50)";
+  filter: alpha(opacity=50);
+  overflow: hidden;
+}

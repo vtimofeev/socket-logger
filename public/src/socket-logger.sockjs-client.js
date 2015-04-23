@@ -1,6 +1,7 @@
 var isNode = typeof module !== 'undefined';
 if (isNode) {
   var io = require('socket.io-client');
+  var SockJS = require('sockjs-client');
   var debug = false;
   var navigator = {userAgent: 'nodejs'};
 }
@@ -61,34 +62,41 @@ var SocketLogger =  {
       //transports: [ 'polling' ], // enables xhr-pooling */
       forceNew: true
     };
-    var socket = io(connectionString, ioOptions);
+    var socket = new SockJS(connectionString);
+    console.log('Create socket ', connectionString, socket);
+
     var stat = { in: 0, out: 0 };
 
-    socket.on('connect', getSocketConnectHandler('connect'));
-    socket.on('reconnect', getSocketConnectHandler('reconnect'));
-
-    socket.on(SocketLogger.Event.DATA, function (message) {
+    socket.onopen = getSocketConnectHandler('open');
+    socket.onmessage = function (e) {
+      var message = e.data;
       stat.in++;
       SocketLogger.log('Data in');
       if (messageHandler) messageHandler(message, SocketLogger.Event.DATA);
-    });
+    };
 
+    /*
     socket.on(SocketLogger.Event.COMMAND, function (message) {
       stat.in++;
       SocketLogger.log('Command in');
       var handler = commandHandler || messageHandler;
       if (handler) handler(message, SocketLogger.Event.COMMAND);
     });
+    */
 
 
-    socket.on('disconnect', function () {
+    socket.onclose = function () {
       if (connectHandler) connectHandler(false);
       SocketLogger.log('Socket disconnected');
-    });
+    };
 
-    socket.on('error', getSocketErrorHandler('error'));
-    socket.on('reconnect_error' , getSocketErrorHandler('reconnect_error'));
-    socket.on('reconnect_failed', getSocketErrorHandler('reconnect_failed'));
+    try {
+      socket.send('Test message');
+    }
+    catch (e)
+    {
+
+    }
 
     function getSocketErrorHandler(type) {
       return function() {
@@ -117,12 +125,12 @@ var SocketLogger =  {
     function emit(data) {
       stat.out++;
       SocketLogger.log('Emit data ', data);
-      socket.emit(SocketLogger.Event.DATA, data);
+      socket.send(JSON.stringify(data));
     }
 
     function command(type, value) {
       SocketLogger.log('Emit command', type, value);
-      socket.emit(SocketLogger.Event.COMMAND, {type: type, data: value || null});
+      socket.send([SocketLogger.Event.COMMAND, {type: type, data: value || null}]);
     }
 
     function getClientId() {
@@ -131,11 +139,12 @@ var SocketLogger =  {
 
     function destroy() {
       clearInterval(statInterval);
-      socket.disconnect();
+      socket.close();
       socket = null;
     }
 
     SocketLogger.log('Socket created ' + client_id);
+
     var statInterval = setInterval(function() {
       SocketLogger.log('Socket', client_id, 'connected', socket.connected, ', total in', stat.in, 'out', stat.out);
     }, 5000);

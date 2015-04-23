@@ -9,7 +9,7 @@
     <style>
         body {
             background-color: #eb5183;
-            transition: background-color 1s ease-in;
+            transition: background-color .5s ease-in-out;
             overflow: hidden;
             -ms-overflow-style: none;
             touch-action: none;
@@ -29,6 +29,7 @@
             margin-left: -50px;
             background-color: #eb5183;
         }
+
     </style>
 </head>
 
@@ -43,7 +44,7 @@
         var $touch = $('<div class="touch"></div>');
         var isSupportPointerEvents = !!window.PointerEvent;
         var isSupportTouchEvent = !!window.TouchEvent;
-        var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004', socketConnectHandler);
+        var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004', null, socketConnectHandler);
 
         function socketConnectHandler(value) {
             $body.toggleClass('connected', value);
