@@ -46,7 +46,6 @@ var SocketLogger = {
   connectionHandler: function(socket){
     console.log('connection  handler ' + socket);
     socket.on(SocketLogger.Event.DATA, SocketLogger.getDefaultHandler(socket, SocketLogger.sendMessageToAll));
-    socket.on(SocketLogger.Event.COMMAND, SocketLogger.getDefaultHandler(socket, SocketLogger.sendCommandToAll));
     socket.on('disconnect' , function() {
       if (_.indexOf(listeners, socket)) listeners = _.without(listeners, socket);
       sockets = _.without(sockets, socket);
@@ -63,23 +62,21 @@ var SocketLogger = {
       end = end < start ? start : end;
       result[key] = collection.slice(start, end);
     });
-    socket.write([SocketLogger.Event.COMMAND, {type: SocketLogger.CommandType.INIT, data: result}])
+    socket.write(JSON.stringify({type: SocketLogger.Event.COMMAND, data: {type: SocketLogger.CommandType.INIT, data: result }}));
   },
 
   updateSockets: function(){
     var data =  _.map(sockets, function(socket) { return socket.info; });
-    SocketLogger.sendMessageToAll({type: SocketLogger.DataType.SOCKETS, data: data });
-
+    SocketLogger.sendMessageToAll(JSON.stringify({type: SocketLogger.DataType.SOCKETS, data: data }));
     SocketLogger.statistic.listners = listeners.length;
     SocketLogger.statistic.sockets = sockets.length;
-
     //console.log('Update sockets ', data);
   },
 
   sendMessageToAll: function(message) {
     _.each(listeners, function (socket) {
       SocketLogger.statistic.out++;
-      socket.write([SocketLogger.Event.DATA, message]);
+      socket.write(message);
     });
   },
 
@@ -87,14 +84,15 @@ var SocketLogger = {
     if(message.type === SocketLogger.CommandType.CLEAN) data = {};
      _.each(listeners, function (socket) {
       SocketLogger.statistic.out++;
-      socket.write([SocketLogger.Event.DATA, message]);
+      socket.write(message);
     });
   },
 
   getDefaultHandler: function(socket, sendToAll) {
-    return function(message) {
+    return function(draftMessage) {
       SocketLogger.statistic.in++;
-
+      var fullMessage = JSON.parse(draftMessage);
+      var message = fullMessage.data;
       var type = message ? message.type : null;
       var clientId = socket.info?socket.info.client_id:null;
 
@@ -122,7 +120,7 @@ var SocketLogger = {
           }
 
           if (data[clientId]) data[clientId].push(message);
-          sendToAll(message);
+          sendToAll(JSON.stringify(fullMessage));
           break;
         }
       }

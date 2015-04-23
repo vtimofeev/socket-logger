@@ -69,10 +69,13 @@ var SocketLogger =  {
 
     socket.onopen = getSocketConnectHandler('open');
     socket.onmessage = function (e) {
-      var message = e.data;
       stat.in++;
+      var fullMessage = JSON.parse(e.data);
+      var message = fullMessage.data;
+      var type = fullMessage.type;
       SocketLogger.log('Data in');
-      if (messageHandler) messageHandler(message, SocketLogger.Event.DATA);
+      if (type === SocketLogger.Event.DATA && messageHandler) messageHandler(message, SocketLogger.Event.DATA);
+      if (type === SocketLogger.Event.COMMAND && commandHandler) commandHandler(message, SocketLogger.Event.COMMAND);
     };
 
     /*
@@ -89,14 +92,6 @@ var SocketLogger =  {
       if (connectHandler) connectHandler(false);
       SocketLogger.log('Socket disconnected');
     };
-
-    try {
-      socket.send('Test message');
-    }
-    catch (e)
-    {
-
-    }
 
     function getSocketErrorHandler(type) {
       return function() {
@@ -125,12 +120,12 @@ var SocketLogger =  {
     function emit(data) {
       stat.out++;
       SocketLogger.log('Emit data ', data);
-      socket.send(JSON.stringify(data));
+      socket.send(JSON.stringify({ type: SocketLogger.Event.DATA, data: data }));
     }
 
     function command(type, value) {
       SocketLogger.log('Emit command', type, value);
-      socket.send([SocketLogger.Event.COMMAND, {type: type, data: value || null}]);
+      socket.send(JSON.stringify({type: SocketLogger.Event.COMMAND, data: {type: type, data: value || null}}));
     }
 
     function getClientId() {

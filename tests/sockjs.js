@@ -37,7 +37,7 @@ function createSocket() {
     mt = setTimeout(function () {
       socket.log('testdata, send by this ' + (i++) + ', total send by instance test app ' + (ti++) + ', in messages per this ' + socket.stat.in);
       emitTestMessage(v);
-    }, 100);
+    }, 1000);
   };
 }
 

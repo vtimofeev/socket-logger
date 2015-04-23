@@ -73,7 +73,6 @@ var app = function App() {
     var execute = (filtredClientId && filtredClientId === message.client_id) || !filtredClientId;
     if (!execute) return;
 
-    $log.prepend($('<div class="command">' + type + '</div>'));
 
     switch (type) {
       case CommandType.CLEAN:
@@ -85,6 +84,9 @@ var app = function App() {
         showData();
     }
 
+    $log.prepend($('<div class="command">' + type + '</div>'));
+
+    
   }
 
   function addMessage(message) {
