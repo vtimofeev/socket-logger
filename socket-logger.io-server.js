@@ -47,7 +47,7 @@ var SocketLogger = {
     socket.on(SocketLogger.Event.DATA, SocketLogger.getDefaultHandler(socket, SocketLogger.sendMessageToAll));
     socket.on(SocketLogger.Event.COMMAND, SocketLogger.getDefaultHandler(socket, SocketLogger.sendCommandToAll));
     socket.on('disconnect' , function() {
-      if (_.indexOf(listeners, socket)) listeners = _.without(listeners, socket);
+      if (listeners.indexOf(socket) > -1) listeners = _.without(listeners, socket);
       sockets = _.without(sockets, socket);
       SocketLogger.updateSockets();
     });

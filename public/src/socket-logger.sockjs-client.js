@@ -57,41 +57,43 @@ var SocketLogger =  {
     var client_id = opt_clientId || SocketLogger.getClientId();
     var session_id = (Math.round(Math.random()*1000000000) + Date.now()).toString(36);
     var options = options || { listener: false };
+    var stat = { in: 0, out: 0 };
+    var isClosed = false;
 
     var ioOptions =  {
       //transports: [ 'polling' ], // enables xhr-pooling */
       forceNew: true
     };
-    var socket = new SockJS(connectionString);
-    console.log('Create socket ', connectionString, socket);
 
-    var stat = { in: 0, out: 0 };
+    var socketResult = createSocket();
 
-    socket.onopen = getSocketConnectHandler('open');
-    socket.onmessage = function (e) {
-      stat.in++;
-      var fullMessage = JSON.parse(e.data);
-      var message = fullMessage.data;
-      var type = fullMessage.type;
-      SocketLogger.log('Data in');
-      if (type === SocketLogger.Event.DATA && messageHandler) messageHandler(message, SocketLogger.Event.DATA);
-      if (type === SocketLogger.Event.COMMAND && commandHandler) commandHandler(message, SocketLogger.Event.COMMAND);
-    };
-
-    /*
-    socket.on(SocketLogger.Event.COMMAND, function (message) {
-      stat.in++;
-      SocketLogger.log('Command in');
-      var handler = commandHandler || messageHandler;
-      if (handler) handler(message, SocketLogger.Event.COMMAND);
-    });
-    */
+     function createSocket () {
+      var socket = new SockJS(connectionString);
+      socket.onopen = getSocketConnectHandler('open');
+      SocketLogger.statistic['create'] = SocketLogger.statistic['create']?(SocketLogger.statistic['create'] + 1):1;
 
 
-    socket.onclose = function () {
-      if (connectHandler) connectHandler(false);
-      SocketLogger.log('Socket disconnected');
-    };
+
+
+      socket.onmessage = function (e) {
+
+        stat.in++;
+        SocketLogger.statistic.in++;
+        var fullMessage = JSON.parse(e.data);
+        var message = fullMessage.data;
+        var type = fullMessage.type;
+        SocketLogger.log('Data in');
+        if (type === SocketLogger.Event.DATA && messageHandler) messageHandler(message, SocketLogger.Event.DATA);
+        if (type === SocketLogger.Event.COMMAND && commandHandler) commandHandler(message, SocketLogger.Event.COMMAND);
+      };
+      socket.onclose = function () {
+        if (connectHandler) connectHandler(false);
+        SocketLogger.statistic['close'] = SocketLogger.statistic['close']?(SocketLogger.statistic['close'] + 1):1;
+        SocketLogger.log('Socket disconnected');
+        if(!isClosed) setTimeout(function() { socketResult = createSocket(); }, 2000);
+      };
+      return socket;
+    }
 
     function getSocketErrorHandler(type) {
       return function() {
@@ -120,12 +122,15 @@ var SocketLogger =  {
     function emit(data) {
       stat.out++;
       SocketLogger.log('Emit data ', data);
-      socket.send(JSON.stringify({ type: SocketLogger.Event.DATA, data: data }));
+      SocketLogger.statistic.out++;
+      socketResult.send(JSON.stringify({ type: SocketLogger.Event.DATA, data: data }));
     }
 
     function command(type, value) {
       SocketLogger.log('Emit command', type, value);
-      socket.send(JSON.stringify({type: SocketLogger.Event.COMMAND, data: {type: type, data: value || null}}));
+      stat.out++;
+      SocketLogger.statistic.out++;
+      socketResult.send(JSON.stringify({type: SocketLogger.Event.COMMAND, data: {type: type, data: value || null}}));
     }
 
     function getClientId() {
@@ -134,14 +139,16 @@ var SocketLogger =  {
 
     function destroy() {
       clearInterval(statInterval);
-      socket.close();
-      socket = null;
+      isClosed = true;
+      socketResult.close();
+      socketResult = null;
+
     }
 
     SocketLogger.log('Socket created ' + client_id);
 
     var statInterval = setInterval(function() {
-      SocketLogger.log('Socket', client_id, 'connected', socket.connected, ', total in', stat.in, 'out', stat.out);
+      SocketLogger.log('Socket', client_id, 'connected', socketResult.connected, ', total in', stat.in, 'out', stat.out);
     }, 5000);
 
     return {

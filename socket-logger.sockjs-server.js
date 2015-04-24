@@ -46,8 +46,8 @@ var SocketLogger = {
   connectionHandler: function(socket){
     console.log('connection  handler ' + socket);
     socket.on(SocketLogger.Event.DATA, SocketLogger.getDefaultHandler(socket, SocketLogger.sendMessageToAll));
-    socket.on('disconnect' , function() {
-      if (_.indexOf(listeners, socket)) listeners = _.without(listeners, socket);
+    socket.on('close' , function() {
+      if (listeners.indexOf(socket) > -1) listeners = _.without(listeners, socket);
       sockets = _.without(sockets, socket);
       SocketLogger.updateSockets();
     });
@@ -67,7 +67,7 @@ var SocketLogger = {
 
   updateSockets: function(){
     var data =  _.map(sockets, function(socket) { return socket.info; });
-    SocketLogger.sendMessageToAll(JSON.stringify({type: SocketLogger.DataType.SOCKETS, data: data }));
+    SocketLogger.sendMessageToAll(JSON.stringify({ type: SocketLogger.Event.DATA, data: {type: SocketLogger.DataType.SOCKETS, data: data } }));
     SocketLogger.statistic.listners = listeners.length;
     SocketLogger.statistic.sockets = sockets.length;
     //console.log('Update sockets ', data);
@@ -118,7 +118,6 @@ var SocketLogger = {
             message.client_id = clientId;
             message.time = Date.now();
           }
-
           if (data[clientId]) data[clientId].push(message);
           sendToAll(JSON.stringify(fullMessage));
           break;

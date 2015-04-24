@@ -10,8 +10,9 @@ var app = function App() {
   var rootScroll = 0;
   var ti = 0;
   var filtredClientId = '';
-  var socket = SocketLogger.getSocketClient('http://localhost:4004/ws', { listener: true }, socketConnectHandler, socketMessageHandler, socketCommandHandler);
+  var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004/ws', { listener: true }, socketConnectHandler, socketMessageHandler, socketCommandHandler);
   var data = {};
+  var countLines = 0;
   var isInited = false;
 
   function socketConnectHandler(value) {
@@ -86,25 +87,39 @@ var app = function App() {
 
     $log.prepend($('<div class="command">' + type + '</div>'));
 
-    
+
   }
 
   function addMessage(message) {
     var date = new Date(message.time);
+    countLines++;
     $log.prepend($('<div class="' + message.type + '">' + date.toLocaleTimeString() + ' '  + message.data + '</div>'));
+
+    if(countLines > 500) {
+      showData();
+    }
   }
 
   function showData() {
     $log.html('');
     var items = [];
+    var maxCollectionSize = 10;
+    var maxFullSize = 100;
+
     _.each(data, function(collection, key) {
       var addCollection = filtredClientId === key || !filtredClientId;
-      if(addCollection) items.push(collection);
+      if(addCollection) {
+        collection.splice(collection.length - maxCollectionSize);
+        items.push(collection);
+      }
     });
 
-    items = _.chain(items).flatten().sortBy(function(m) {return m.time; }).each(function(m) { addMessage(m) });
-  };
 
+    items = _.chain(items).flatten().sortBy(function(m) {return m.time; }).value();
+    if (items.length > maxFullSize) items.splice(items.length - maxFullSize);
+    countLines = items.length;
+    items.forEach(function(m) { addMessage(m) });
+  };
 
 
   function getFilterHandler(item, $li_items) {

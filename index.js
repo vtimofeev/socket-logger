@@ -13,5 +13,5 @@ app.use(express.static('public'));
 
 
 http.listen(argv.port, function(){
-  console.log('listening on *:' + argv.port);
+  console.log('listening on *:' + argv.port + ', ' + JSON.stringify(http.address()));
 });
