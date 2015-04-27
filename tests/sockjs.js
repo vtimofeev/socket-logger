@@ -40,7 +40,7 @@ function createSocket() {
   };
 }
 
-for (var i = 0; i < 2000; i++) {
+for (var i = 0; i < 1000; i++) {
   setTimeout(createSocket, i*100);
 }
 

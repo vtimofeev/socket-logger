@@ -72,9 +72,6 @@ var SocketLogger =  {
       socket.onopen = getSocketConnectHandler('open');
       SocketLogger.statistic['create'] = SocketLogger.statistic['create']?(SocketLogger.statistic['create'] + 1):1;
 
-
-
-
       socket.onmessage = function (e) {
 
         stat.in++;

@@ -5,6 +5,7 @@
 .
 
 # local parts
+/config
 /local
 /public/l
 
