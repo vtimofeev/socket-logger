@@ -44,7 +44,7 @@
         var $touch = $('<div class="touch"></div>');
         var isSupportPointerEvents = !!window.PointerEvent;
         var isSupportTouchEvent = !!window.TouchEvent;
-        var socket = SocketLogger.getSocketClient('http://localhost:4004/ws', null, socketConnectHandler);
+        var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004/ws', null, socketConnectHandler);
 
         function socketConnectHandler(value) {
             $body.toggleClass('connected', value);

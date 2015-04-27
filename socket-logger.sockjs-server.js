@@ -214,7 +214,7 @@ function init(server) {
   SocketLogger.bmi = new bm.BasicMongo(config.mongodb);
   SocketLogger.bmi.on('connected', function () { SocketLogger.bmi.init([{name: 'logs', keys: [  { time: 1}, { client_id: 1 }]}, {name: 'clients', keys: [ {time: 1}, { client_id: 1 }]} ] ); });
   SocketLogger.bmi.on('ready', function() { SocketLogger.dbReady = true; });
-  SocketLogger.bmi.connect();
+  //SocketLogger.bmi.connect();
 
   sockjsServer = sockjs.createServer(sockjs_opts);
   sockjsServer.installHandlers(server, hander_opts);
