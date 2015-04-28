@@ -1,24 +1,22 @@
 var _ = require('underscore');
-var sockjs =  require('sockjs');
+var sockjs = require('sockjs');
 var bm = require('./libs/basic-mongo');
 var config = require('./config/default');
 var async = require('async');
+var logNS = require('./libs/basic-log');
+var logger = new logNS.BasicLog('SocketLogger');
 
 var MAX_COLLECTION_SIZE = 1000;
 var MAX_SEND_SIZE = 10;
-var CLEAN_INTERVAL_MS = 60000;
 var STAT_INTERVAL_MS = 3000;
 
 var sockets = [];
 var listeners = [];
-var data = {};
 var sockjsServer = null;
-var dataCleanInterval = 0;
 var statInterval = 0;
 
-var logNS = require('./libs/basic-log');
-var logger = new logNS.BasicLog('SocketLogger');
-
+var sockjs_opts = {sockjs_url: "http://cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"};
+var hander_opts = {prefix: '/ws'};
 
 var SocketLogger = {
   NS: 'socketLogger',
@@ -27,145 +25,155 @@ var SocketLogger = {
     COMMAND: 'command'
   },
   DataType: {
-    INFO: 'info',
-    SOCKETS: 'sockets',
+    INFO: 'info', /* Client to server : startup */
+    SOCKETS: 'sockets', /* Server to client */
+    /* Both */
     LOG: 'log',
     WARN: 'warn',
     ERR: 'err'
   },
   CommandType: {
-    INIT: 'init',
-    RELOAD: 'reload',
+    INIT: 'init', /* Server to client, active clients */
+    RELOAD: 'reload', /* Server to client, reload */
     NEW: 'new',
-    CLEAN: 'clean'
+    CLEAN: 'clean', /* Client to server - server to all clients that listen this channel : define client_id or null to listen */
+    LISTEN: 'listen', /* Client to server : define client_id or null to listen */
+    HISTORY: 'history', /* Client to server : get history, type: clients/logs, data: 0 to all history */
+    STAT: 'stat' /* Server to client (listener) : update stat */
   },
-  statistic: { listners: 0, sockets: 0, in: 0, out: 0 },
-  bmi:null,
+  COLLECTIONS: {
+    LOGS: 'logs',
+    CLIENTS: 'clients'
+  },
+
+  statistic: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0 },
+  statisticPrev: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0 },
+
+  bmi: null,
   dbReady: false,
-  clean: function() {
-    _.each(data, function(collection, key) {
-      if(collection && collection.length > MAX_COLLECTION_SIZE * 2) {
-        var startLength = collection.length;
-        collection.splice(0, startLength - MAX_COLLECTION_SIZE);
-        //console.log('Resize collection %s from %d to %d, last %s', key, startLength, collection.length, JSON.stringify(collection[collection.length-1]));
-      }
-    });
-  },
 
-  connectionHandler: function(socket){
-    console.log('connection  handler ' + socket);
-
+  connectionHandler: function (socket) {
     socket.on(SocketLogger.Event.DATA, SocketLogger.getDefaultHandler(socket, SocketLogger.sendMessageToAll));
-    socket.on('close' , function() {
+    socket.on('close', function () {
       if (listeners.indexOf(socket) > -1) listeners = _.without(listeners, socket);
       sockets = _.without(sockets, socket);
       SocketLogger.updateSockets();
     });
   },
 
-  sendInitData: function(socket) {
-    if(!SocketLogger.dbReady) return;
-    var result = {};
-    /**
-    _.each(data, function (collection, key) {
-      var start = collection.length - MAX_SEND_SIZE - 1;
-      var end = collection.length - 1;
-      start = start < 0 ? 0 : start;
-      end = end < start ? start : end;
-      result[key] = collection.slice(start, end);
-    });
-     */
-      console.log('Send init');
-      var clients = [];
-      var logs = {};
+  sendInitData: function (socket) {
+    if (!SocketLogger.dbReady) return;
+    var clients = [];
+    var logs = {};
 
-      logger.logWithDiff('Pre');
+    // update last diff
+    logger.lastDiff;
 
-      async.series([
-          function(cb) {
-            SocketLogger.bmi.getCollection('clients').find({}).sort({'time': -1}).limit(100).toArray(
-              function(e, results) {
-                clients = results;
-                cb(e,results);
+
+    async.series([
+        function (cb) {
+          var time = Date.now();
+          SocketLogger.bmi.getCollection('clients').find({}).sort({'time': -1}).limit(100).toArray(
+            function (e, results) {
+              clients = results;
+              if (!e) {
+                SocketLogger.statistic.dbRead++;
+                SocketLogger.statistic.dbReadTt += (Date.now() - time);
+              }
+              else {
+                SocketLogger.statistic.dbError++;
+              }
+
+              cb(e, results);
             });
-          },
-          function(cb) {
-            var l = 0;
-            _.map(clients, function(client) {
-              SocketLogger.bmi.getCollection('logs')
-                .find({ client_id: client.client_id}, {limit: 100})
-                .sort({time: -1})
-                .toArray(
-                  function(e, result) {
-                  console.log('Init data logs ');
-                  logs[client.client_id] = result;
-                  if(++l >= clients.length) cb(e, result);
-                });
-            });
-            if(!(clients && clients.length)) cb();
-          }
-        ],
-        function(e, result) {
-          console.log('Send logs ... ', e);
-          logger.logWithDiff('SendInitData');
-          socket.write(JSON.stringify({type: SocketLogger.Event.COMMAND, data: {type: SocketLogger.CommandType.INIT, data: logs }}));
-        });
+        },
+        function (cb) {
+          var l = 0;
+          _.each(clients, function (client) {
+            var time = Date.now();
+
+            SocketLogger.bmi.getCollection('logs')
+              .find({client_id: client.client_id})
+              .sort({time: -1})
+              .limit(100)
+              .toArray(
+              function (e, result) {
+                logs[client.client_id] = result;
+                if (!e) {
+                  SocketLogger.statistic.dbRead++;
+                }
+                else {
+                  SocketLogger.statistic.dbError++;
+                }
+
+                if (++l >= clients.length) {
+                  SocketLogger.statistic.dbReadTt += (Date.now() - time);
+                  cb(e, result);
+                }
+              });
+          });
+
+          if (!(clients && clients.length)) cb();
+        }
+      ],
+      function (e, result) {
+        logger.logWithDiff(' init db time, error ', e);
+        socket.write(JSON.stringify({type: SocketLogger.Event.COMMAND, data: {type: SocketLogger.CommandType.INIT, data: logs}}));
+      });
   },
 
-  updateSockets: function(){
-    var data =  _.map(sockets, function(socket) { return socket.info; });
-    SocketLogger.sendMessageToAll(JSON.stringify({ type: SocketLogger.Event.DATA, data: {type: SocketLogger.DataType.SOCKETS, data: data } }));
-    SocketLogger.statistic.listners = listeners.length;
+  updateSockets: function () {
+    var data = _.map(sockets, function (socket) { return socket.info; });
+    SocketLogger.sendMessageToAll(JSON.stringify({type: SocketLogger.Event.DATA, data: {type: SocketLogger.DataType.SOCKETS, data: data}}));
+    SocketLogger.statistic.listeners = listeners.length;
     SocketLogger.statistic.sockets = sockets.length;
-    //console.log('Update sockets ', data);
   },
 
-  sendMessageToAll: function(message) {
+  sendMessageToAll: function (message) {
     _.each(listeners, function (socket) {
       SocketLogger.statistic.out++;
       socket.write(message);
     });
   },
 
-  sendCommandToAll: function(message) {
-    if(message.type === SocketLogger.CommandType.CLEAN) data = {};
-     _.each(listeners, function (socket) {
+  sendCommandToAll: function (message) {
+    _.each(listeners, function (socket) {
       SocketLogger.statistic.out++;
       socket.write(message);
     });
   },
 
-  insertLogDb: function(data) {
-    if(!SocketLogger.dbReady) return;
-    logger.logWithDiff('Prelog');
+  insertLogDb: function (data) {
+    if (!SocketLogger.dbReady) return;
     SocketLogger.bmi.getCollection('logs').insert(
       data,
-      function(e, result) {
-        logger.logWithDiff('log inserted ', e);
+      function (e, result) {
+        if (!e && result) SocketLogger.statistic.dbIn++;
+        else  SocketLogger.statistic.dbError++;
+
         //console.log('Insert log result e, result : ', e, result);
       }
     );
   },
 
-  insertOrUpdateClientDb: function (data){
-    if(!SocketLogger.dbReady) return;
-    SocketLogger.bmi.getCollection('clients').update(
-      {client_id : data.client_id},
-      data,
-      {upsert:true},
-      function(e, result) {
-        //console.log('Upsert client result e, result : ', e, result);
+  insertOrUpdateClientDb: function (data) {
+    if (!SocketLogger.dbReady) return;
+    SocketLogger.bmi.getCollection('clients')
+      .update({client_id: data.client_id}, data, {upsert: true},
+      function (e, result) {
+        if (!e && result) SocketLogger.statistic.dbIn++;
+        else  SocketLogger.statistic.dbError++;
       }
     );
   },
 
-  getDefaultHandler: function(socket, sendToAll) {
-    return function(draftMessage) {
+  getDefaultHandler: function (socket, sendToAll) {
+    return function (draftMessage) {
       SocketLogger.statistic.in++;
       var fullMessage = JSON.parse(draftMessage);
       var message = fullMessage.data;
       var type = message ? message.type : null;
-      var clientId = socket.info?socket.info.client_id:null;
+      var clientId = socket.info ? socket.info.client_id : null;
 
       switch (type) {
         case SocketLogger.DataType.INFO:
@@ -179,7 +187,7 @@ var SocketLogger = {
             var isListener = socket.info && socket.info.options && socket.info.options.listener;
 
 
-            if(isListener) listeners.push(socket);
+            if (isListener) listeners.push(socket);
             sockets.push(socket);
             SocketLogger.insertOrUpdateClientDb(socket.info);
             SocketLogger.updateSockets();
@@ -200,27 +208,49 @@ var SocketLogger = {
         }
       }
     };
+  },
+  createStatistic: function() {
+    var factor = Math.round(STAT_INTERVAL_MS/1000);
+    var s = SocketLogger.statistic;
+    var ps = SocketLogger.statisticPrev;
+
+    function view(value) { return value.toFixed(1); }
+    function avg(name) { return view((s[name + 'Tt'] - ps[name + 'Tt'])/((s[name] - ps[name]) || 1)); };
+    function rps(name) { return view((s[name] - ps[name])/factor); }
+
+    s.avgDbIn = avg('dbIn');
+    s.avdDbRead = avg('dbRead');
+    s.dbInRps = rps('dbIn');
+    s.dbReadRps = rps('dbRead');
+    s.dbErrorRps = rps('dbError');
+
+    console.log('Statistic: ' + JSON.stringify(s));
+
+    ps = _.clone(s);
   }
 };
 
 function init(server) {
-  dataCleanInterval = setInterval(SocketLogger.clean, CLEAN_INTERVAL_MS);
-  statInterval = setInterval(function() { console.log('Statistic: ' + JSON.stringify(SocketLogger.statistic)); }, STAT_INTERVAL_MS);
-
-  // 1. Echo sockjs server
-  var sockjs_opts = {sockjs_url: "http://cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js" };
-  var hander_opts = {prefix: '/ws' };
-
   SocketLogger.bmi = new bm.BasicMongo(config.mongodb);
-  SocketLogger.bmi.on('connected', function () { SocketLogger.bmi.init([{name: 'logs', keys: [  { time: 1}, { client_id: 1 }]}, {name: 'clients', keys: [ {time: 1}, { client_id: 1 }]} ] ); });
-  SocketLogger.bmi.on('ready', function() { SocketLogger.dbReady = true; });
-  //SocketLogger.bmi.connect();
 
-  sockjsServer = sockjs.createServer(sockjs_opts);
-  sockjsServer.installHandlers(server, hander_opts);
-  sockjsServer.on('connection', SocketLogger.connectionHandler);
+  SocketLogger.bmi.on('connected', function () {
+    console.log('Db is connected');
+    SocketLogger.bmi.init([{name: 'logs', keys: [{time: 1}, {client_id: 1}]}, {name: 'clients', keys: [{time: 1}, {client_id: 1}]}]);
+  });
 
-  return sockjsServer;
+  SocketLogger.bmi.on('ready', function () {
+    console.log('Db is ready');
+    SocketLogger.dbReady = true;
+
+    sockjsServer = sockjs.createServer(sockjs_opts);
+    sockjsServer.installHandlers(server, hander_opts);
+    sockjsServer.on('connection', SocketLogger.connectionHandler);
+
+    statInterval = setInterval(SocketLogger.createStatistic, STAT_INTERVAL_MS);
+  });
+
+  SocketLogger.bmi.connect();
+  return null;
 }
 
 module.exports = init;

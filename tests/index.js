@@ -1,4 +1,4 @@
-var SocketLogger = require('../public/src/socket-logger').SocketLogger;
+var SocketLogger = require('../depricated/socket.io/client/socket-logger').SocketLogger;
 var ti = 0;
 
 

@@ -31,10 +31,10 @@ var app = function App() {
 
         var $ul = _.reduce(
           _.map(items || [],
-            function mapItems(item) {
+            function mapItems(item, index) {
               var uaData = UAParser(item.ua);
               console.log(JSON.stringify(uaData));
-              var content = item.client_id ? ('id: ' + item.client_id + ', ' + uaData.browser.name + ' ' + uaData.browser.version + ', ' + uaData.os.name + ', ' + item.href) : 'Очистить';
+              var content = item.client_id ? (index + ': ' + 'id: ' + item.client_id + ', ' + uaData.browser.name + ' ' + uaData.browser.version + ', ' + uaData.os.name + ', ' + item.href) : 'Очистить';
               var $li = $('<div>' + content + '</div>');
               $li.bind('click', $.proxy(getFilterHandler(item, $li_items), $li));
               $li_items.push($li);
