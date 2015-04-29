@@ -36,7 +36,9 @@
 <body>
 <script src="libs/zepto.js"></script>
 <script src="libs/sockjs-0.3.4.js"></script>
+<script src="libs/underscore.js"></script>
 <script src="src/socket-logger.sockjs-client.js"></script>
+<script src="src/basic-touch.client.js"></script>
 <script>
     var app = function() {
         var $root = $(document);
@@ -45,6 +47,7 @@
         var isSupportPointerEvents = !!window.PointerEvent;
         var isSupportTouchEvent = !!window.TouchEvent;
         var socket = SocketLogger.getSocketClient('http://192.168.0.35:4004/ws', null, socketConnectHandler);
+        window.log = socket.log;
 
         function socketConnectHandler(value) {
             $body.toggleClass('connected', value);
@@ -57,11 +60,26 @@
         $root.bind(events, function(e) {
             var touchX = Math.round(e.clientX || (e.touches&&e.touches.length?e.touches[0].clientX: 0));
             var touchY = Math.round(e.clientY || (e.touches&&e.touches.length?e.touches[0].clientY: 0));
-            $touch.css({left: touchX + 'px', top: touchY + 'px'});
+            //$touch.css({left: touchX + 'px', top: touchY + 'px'});
             socket.log(e.type, touchX, touchY);
-            console.log(e);
-        })
+            //console.log(e.type , e);
+        });
+
+        var btm = new BasicTouch.Touch($root.get(0));
+
+
+        btm.listenTypes('pan');
+
+        $root.bind('panstart panmove panend', function(e) {
+           console.log('Pan events ' ,  e.type);
+            socket.log(e.type, JSON.stringify(e.diff));
+            $touch.css({left: e.screenX + 'px', top: e.screenY + 'px'});
+
+        });
+
     }();
+
+
 
 </script>
 
