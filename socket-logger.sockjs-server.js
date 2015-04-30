@@ -46,8 +46,8 @@ var SocketLogger = {
     CLIENTS: 'clients'
   },
 
-  statistic: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0 },
-  statisticPrev: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0 },
+  statistic: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0},
+  statisticPrev: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0},
 
   bmi: null,
   dbReady: false,
@@ -209,14 +209,15 @@ var SocketLogger = {
       }
     };
   },
-  createStatistic: function() {
-    var factor = Math.round(STAT_INTERVAL_MS/1000);
+  createStatistic: function () {
+    var factor = Math.round(STAT_INTERVAL_MS / 1000);
     var s = SocketLogger.statistic;
     var ps = SocketLogger.statisticPrev;
 
     function view(value) { return value.toFixed(1); }
-    function avg(name) { return view((s[name + 'Tt'] - ps[name + 'Tt'])/((s[name] - ps[name]) || 1)); };
-    function rps(name) { return view((s[name] - ps[name])/factor); }
+
+    function avg(name) { return view((s[name + 'Tt'] - ps[name + 'Tt']) / ((s[name] - ps[name]) || 1)); };
+    function rps(name) { return view((s[name] - ps[name]) / factor); }
 
     s.avgDbIn = avg('dbIn');
     s.avdDbRead = avg('dbRead');
@@ -231,26 +232,28 @@ var SocketLogger = {
 };
 
 function init(server) {
-  SocketLogger.bmi = new bm.BasicMongo(config.mongodb);
+  sockjsServer = sockjs.createServer(sockjs_opts);
+  sockjsServer.installHandlers(server, hander_opts);
+  sockjsServer.on('connection', SocketLogger.connectionHandler);
 
-  SocketLogger.bmi.on('connected', function () {
-    console.log('Db is connected');
+  var bmi = new bm.BasicMongo(config.mongodb);
+  bmi.on('connected', function () {
     SocketLogger.bmi.init([{name: 'logs', keys: [{time: 1}, {client_id: 1}]}, {name: 'clients', keys: [{time: 1}, {client_id: 1}]}]);
   });
 
-  SocketLogger.bmi.on('ready', function () {
-    console.log('Db is ready');
-    SocketLogger.dbReady = true;
+  bmi.on('error', function () {
 
-    sockjsServer = sockjs.createServer(sockjs_opts);
-    sockjsServer.installHandlers(server, hander_opts);
-    sockjsServer.on('connection', SocketLogger.connectionHandler);
-
-    statInterval = setInterval(SocketLogger.createStatistic, STAT_INTERVAL_MS);
   });
 
-  SocketLogger.bmi.connect();
-  return null;
-}
+    bmi.on('ready', function () {
+      SocketLogger.dbReady = true;
+      statInterval = setInterval(SocketLogger.createStatistic, STAT_INTERVAL_MS);
+    });
 
-module.exports = init;
+
+    bmi.connect();
+    SocketLogger.bmi = bmi;
+    return null;
+  }
+
+  module.exports = init;

@@ -56,9 +56,26 @@ export class BasicMongo extends events.EventEmitter {
 
     connectHandler(error:any, db:mongodb.Db) {
         difflog('connect handler result %s, error %s', !!db, error);
-        if(error || !db) throw error || 'unknown db';
+        //if(error || !db) throw error || 'unknown db';
         this.clients.push(db);
-        if(!this.defaultDb) this.defaultDb = db;
+        if(!this.defaultDb) {
+            this.defaultDb = db;
+            if(this.defaultDb) {
+                this.defaultDb.addListener('open', function () {
+                    console.log('Mongodb open handler');
+                });
+                this.defaultDb.addListener('error', function () {
+                    console.log('Mongodb error handler');
+                });
+                this.defaultDb.addListener('timeout', function () {
+                    console.log('Mongodb timeout handler');
+                });
+                this.defaultDb.addListener('close', function () {
+                    console.log('Mongodb close handler');
+                });
+            }
+        }
+
         this.emit(DbState.CONNECTED);
     }
 
