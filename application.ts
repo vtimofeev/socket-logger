@@ -1,14 +1,21 @@
 ///<reference path='../treeweb-server/application/r.d.ts'/>
-var sockjs = require('sockjs');
-var config = require('./config/default');
-var bm = require('./libs/basic-mongo');
-var bl = require('./libs/basic-log');
+
+import _ = require('lodash');
+import sockjs = require('sockjs');
+import config = require('./config/default');
+import async = require('async');
+import bm = require('./libs/basic-mongo');
+import bl = require('./libs/basic-log');
+
 var logger = new bl.BasicLog('SocketLogger');
-var MAX_COLLECTION_SIZE = 1000;
-var MAX_SEND_SIZE = 10;
-var STAT_INTERVAL_MS = 3000;
-var sockjs_opts = { sockjs_url: "http://cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js" };
-var hander_opts = { prefix: '/ws' };
+
+const MAX_COLLECTION_SIZE:number = 1000;
+const MAX_SEND_SIZE = 10;
+const STAT_INTERVAL_MS = 3000;
+const sockjs_opts = {sockjs_url: "http://cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"};
+const hander_opts = {prefix: '/ws'};
+const dbStructure:any[] = [{name: 'logs', keys: [{time: 1}, {client_id: 1}]}, {name: 'clients', keys: [{time: 1}, {client_id: 1}]}];
+
 var SocketLogger = {
     NS: 'socketLogger',
     Event: {
@@ -16,19 +23,19 @@ var SocketLogger = {
         COMMAND: 'command'
     },
     DataType: {
-        INFO: 'infoToServer',
-        SOCKETS: 'socketsToClient',
+        INFO: 'infoToServer', /* Client to server : startup */
+        SOCKETS: 'socketsToClient', /* Server to client */
         /* Both */
         LOG: 'log',
         WARN: 'warn',
         ERR: 'err'
     },
     CommandType: {
-        RELOAD: 'reload',
-        CLEAN: 'clean',
-        HISTORY: 'history',
-        LISTEN: 'listenToServer',
-        INIT: 'initToClient',
+        RELOAD: 'reload', /* Server to client, reload */
+        CLEAN: 'clean', /* Client to server - server to all clients that listen this channel : define client_id or null to listen */
+        HISTORY: 'history', /* Client to server : get history, type: clients/logs, data: 0 to all history */
+        LISTEN: 'listenToServer', /* Client to server : define client_id or null to listen */
+        INIT: 'initToClient', /* Server to client, active clients */
         STAT: 'statToClient' /* Server to client (listener) : update stat */
     },
     COLLECTIONS: {
@@ -36,37 +43,140 @@ var SocketLogger = {
         CLIENTS: 'clients'
     }
 };
-var Application = (function () {
-    function Application() {
-        this.sockets = [];
-        this.listeners = [];
-        this.sockjsServer = null;
-        this.bmi = null;
-        this.dbReady = false;
+
+
+class Application {
+    sockets:Array<any> = [];
+    listeners:Array<any> = [];
+
+    sockjsServer:any = null;
+    bmi:bm.BasicMongo = null;
+    dbReady:boolean = false;
+    statInterval;
+
+    constructor() {
+        _.bindAll(this, 'init', 'socketConnectionHandler');
     }
-    Application.prototype.init = function (server) {
+
+    init(server) {
+        var t:Application = this;
         var sockjsServer = sockjs.createServer(sockjs_opts);
         sockjsServer.installHandlers(server, hander_opts);
+
         sockjsServer.on('connection', this.socketConnectionHandler);
+
         this.sockjsServer = sockjsServer;
+
         var bmi = new bm.BasicMongo(config.mongodb);
-        bmi.on('connected', function () {
-            bmi.init([{ name: 'logs', keys: [{ time: 1 }, { client_id: 1 }] }, { name: 'clients', keys: [{ time: 1 }, { client_id: 1 }] }]);
-        });
-        bmi.on('error', function () {
-        });
+        var readyTimeout = setTimeout(function() { throw new Error('Cant connect&init mongo in 10s')}, 10000);
+        bmi.on('connected', function () { bmi.init(dbStructure); });
         bmi.on('ready', function () {
-            SocketLogger.dbReady = true;
-            statInterval = setInterval(SocketLogger.createStatistic, STAT_INTERVAL_MS);
+            clearTimeout(readyTimeout);
+            t.dbReady = true;
+            t.statInterval = setInterval(t.createStatistic, STAT_INTERVAL_MS);
         });
+
         bmi.connect();
-        SocketLogger.bmi = bmi;
+        this.bmi = bmi;
         return null;
-    };
-    Application.prototype.socketConnectionHandler = function (socket) {
-    };
-    return Application;
-})();
+    }
+
+    createStatistic() {
+    }
+
+    socketConnectionHandler(socket:any) {
+        var socketHandler = new SocketInternalHandler(socket, this.socketInfoHandler, this.socketDataHandler);
+
+
+        socket.on(SocketLogger.Event.DATA, SocketLogger.getDefaultHandler(socket, SocketLogger.sendMessageToAll));
+        socket.on('close', function () {
+            if (listeners.indexOf(socket) > -1) listeners = _.without(listeners, socket);
+            sockets = _.without(sockets, socket);
+            SocketLogger.updateSockets();
+        });
+    }
+
+    socketInfoHandler(socket) {
+        var isntContainInSockets = this.sockets.indexOf(socket) === -1;
+        var isntContainInListeners = this.listeners.indexOf(socket) === -1;
+
+        if(isntContainInSockets) {
+            this.sockets.push(socket);
+            this.upsertData(socket.info, 'client_id', 'clients');
+        }
+        if(isntContainInListeners && socket.info.isListener) this.listeners.push(socket)
+    }
+
+    socketDataHandler(socket) {
+    }
+
+    socketCloseHandler(socket) {
+    }
+
+    upsertData(data, key, collection) {
+        if (!this.dbReady) return;
+        var whereQueryObject = {};
+        whereQueryObject[key] = data[key];
+        this.bmi.getCollection(collection).update(whereQueryObject, data, {upsert: true}, this.upsertResultHandler);
+    }
+
+    upsertResultHandler(e, result) {
+        if (!e && result) SocketLogger.statistic.dbIn++;
+        else  SocketLogger.statistic.dbError++;
+    }
+
+    insertData(data, collection) {
+    }
+}
+
+class SocketInternalHandler {
+
+    constructor(public socket:any, public infoHandler:Function, public dataHandler:Function, public commandHandler:Function) {
+        this.socket.on(SocketLogger.Event.DATA, this.internalDataHandler);
+
+    }
+
+    internalDataHandler(draftMessage) {
+        SocketLogger.statistic.in++;
+        var fullMessage = JSON.parse(draftMessage);
+        var message = fullMessage.data;
+        var type = message ? message.type : null;
+        var clientId = socket.info ? socket.info.client_id : null;
+
+        switch (type) {
+            case SocketLogger.DataType.INFO:
+            {
+                socket.info = message.data;
+                socket.info.time = Date.now();
+                socket.info.isListener = socket.info && socket.info.options && socket.info.options.listener;
+                this.infoHandler(socket);
+            }
+            default:
+            {
+                if (message) {
+                    message.client_id = clientId;
+                    message.time = Date.now();
+                }
+                //if (data[clientId]) data[clientId].push(message);
+                SocketLogger.insertLogDb(message);
+                sendToAll(JSON.stringify(fullMessage));
+                break;
+            }
+        }
+    }
+
+    functin (socket, sendToAll) {
+        return ;
+    }
+
+    dispose() {
+        this.socket = null;
+    }
+
+
+}
+
+
 /*
 var sockets = [];
 var listeners = [];
@@ -284,5 +394,6 @@ function init(server) {
     return null;
 }
 */
-module.exports = init;
-//# sourceMappingURL=application.sockjs.mongo.js.js.map
+
+var app = new Application()
+module.exports = app.init;

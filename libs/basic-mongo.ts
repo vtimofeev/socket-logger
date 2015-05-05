@@ -46,6 +46,10 @@ export class BasicMongo extends events.EventEmitter {
         mongodb.MongoClient.connect(this.url, {native_parser:true}, this.connectHandler);
     }
 
+    isConnected() {
+        return this.defaultDb && this.defaultDb.
+    }
+
     getClient():mongodb.Db {
         return this.defaultDb;
     }
@@ -120,7 +124,7 @@ export class BasicMongo extends events.EventEmitter {
         difflog('Created collections preparing functions: ', dbFunctionArray.length);
         async.series(dbFunctionArray, function(e, results) {
             if(!e) {
-                difflog('Ready, collections created.');
+                difflog('Ready, collections created. ');
             }
         });
         this.emit(DbState.READY);
