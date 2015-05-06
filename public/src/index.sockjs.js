@@ -15,6 +15,10 @@ var app = function App() {
   var countLines = 0;
   var isInited = false;
 
+  var clientsCount = 0;
+  var clients = [];
+
+
   function socketConnectHandler(value) {
     $id.html(socket.id);
     $status.html(value ? 'connected' : 'disconnected');
@@ -81,7 +85,10 @@ var app = function App() {
         showData();
         break;
       case CommandType.INIT:
-        data = message.data;
+        if(message.data && message.data.logs) data = message.data.logs;
+        if(message.data && message.data.clients) clients = message.data.clients;
+        if(message.data && message.data.clientsCount) clientsCount = message.data.clientsCount;
+
         showData();
     }
 

@@ -39,10 +39,6 @@ var BasicMongo = (function (_super) {
     BasicMongo.prototype.connect = function () {
         mongodb.MongoClient.connect(this.url, { native_parser: true }, this.connectHandler);
     };
-    BasicMongo.prototype.isConnected = function () {
-        return this.defaultDb && this.defaultDb.
-        ;
-    };
     BasicMongo.prototype.getClient = function () {
         return this.defaultDb;
     };

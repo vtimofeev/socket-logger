@@ -54,8 +54,8 @@ var SocketLogger =  {
   },
   getSocketClient: function (connectionString, options, connectHandler, messageHandler, commandHandler, opt_clientId) {
     'use strict';
-    var client_id = opt_clientId || SocketLogger.getClientId();
     var session_id = (Math.round(Math.random()*1000000000) + Date.now()).toString(36);
+    var client_id = (opt_clientId || SocketLogger.getClientId()) + ':' + session_id;
     var options = options || { listener: false };
     var stat = { in: 0, out: 0 };
     var isClosed = false;
@@ -71,7 +71,6 @@ var SocketLogger =  {
       var socket = new SockJS(connectionString);
       socket.onopen = getSocketConnectHandler('open');
       SocketLogger.statistic['create'] = SocketLogger.statistic['create']?(SocketLogger.statistic['create'] + 1):1;
-
       socket.onmessage = function (e) {
 
         stat.in++;

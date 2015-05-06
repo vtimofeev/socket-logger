@@ -20,11 +20,13 @@ var SocketLogger = {
     NS: 'socketLogger',
     Event: {
         DATA: 'data',
+        CLOSE: 'close',
         COMMAND: 'command'
     },
     DataType: {
-        INFO: 'infoToServer', /* Client to server : startup */
-        SOCKETS: 'socketsToClient', /* Server to client */
+        INFO: 'info', /* Client to server : startup */
+        SOCKETS: 'sockets', /* Server to client */
+        INIT: 'init',/* Server to client */
         /* Both */
         LOG: 'log',
         WARN: 'warn',
@@ -41,21 +43,22 @@ var SocketLogger = {
     COLLECTIONS: {
         LOGS: 'logs',
         CLIENTS: 'clients'
-    }
+    },
+    statistic: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0},
+    statisticPrevious: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0}
 };
 
 
 class Application {
     sockets:Array<any> = [];
     listeners:Array<any> = [];
-
     sockjsServer:any = null;
     bmi:bm.BasicMongo = null;
     dbReady:boolean = false;
     statInterval;
 
     constructor() {
-        _.bindAll(this, 'init', 'socketConnectionHandler');
+        _.bindAll(this, 'init', 'socketConnectionHandler' , 'createStatistic', 'socketInfoHandler', 'socketCloseHandler', 'socketDataHandler', 'sendToListeners', 'upsertData', 'insertData', 'findData');
     }
 
     init(server) {
@@ -82,278 +85,11 @@ class Application {
     }
 
     createStatistic() {
-    }
-
-    socketConnectionHandler(socket:any) {
-        var socketHandler = new SocketInternalHandler(socket, this.socketInfoHandler, this.socketDataHandler);
-
-
-        socket.on(SocketLogger.Event.DATA, SocketLogger.getDefaultHandler(socket, SocketLogger.sendMessageToAll));
-        socket.on('close', function () {
-            if (listeners.indexOf(socket) > -1) listeners = _.without(listeners, socket);
-            sockets = _.without(sockets, socket);
-            SocketLogger.updateSockets();
-        });
-    }
-
-    socketInfoHandler(socket) {
-        var isntContainInSockets = this.sockets.indexOf(socket) === -1;
-        var isntContainInListeners = this.listeners.indexOf(socket) === -1;
-
-        if(isntContainInSockets) {
-            this.sockets.push(socket);
-            this.upsertData(socket.info, 'client_id', 'clients');
-        }
-        if(isntContainInListeners && socket.info.isListener) this.listeners.push(socket)
-    }
-
-    socketDataHandler(socket) {
-    }
-
-    socketCloseHandler(socket) {
-    }
-
-    upsertData(data, key, collection) {
-        if (!this.dbReady) return;
-        var whereQueryObject = {};
-        whereQueryObject[key] = data[key];
-        this.bmi.getCollection(collection).update(whereQueryObject, data, {upsert: true}, this.upsertResultHandler);
-    }
-
-    upsertResultHandler(e, result) {
-        if (!e && result) SocketLogger.statistic.dbIn++;
-        else  SocketLogger.statistic.dbError++;
-    }
-
-    insertData(data, collection) {
-    }
-}
-
-class SocketInternalHandler {
-
-    constructor(public socket:any, public infoHandler:Function, public dataHandler:Function, public commandHandler:Function) {
-        this.socket.on(SocketLogger.Event.DATA, this.internalDataHandler);
-
-    }
-
-    internalDataHandler(draftMessage) {
-        SocketLogger.statistic.in++;
-        var fullMessage = JSON.parse(draftMessage);
-        var message = fullMessage.data;
-        var type = message ? message.type : null;
-        var clientId = socket.info ? socket.info.client_id : null;
-
-        switch (type) {
-            case SocketLogger.DataType.INFO:
-            {
-                socket.info = message.data;
-                socket.info.time = Date.now();
-                socket.info.isListener = socket.info && socket.info.options && socket.info.options.listener;
-                this.infoHandler(socket);
-            }
-            default:
-            {
-                if (message) {
-                    message.client_id = clientId;
-                    message.time = Date.now();
-                }
-                //if (data[clientId]) data[clientId].push(message);
-                SocketLogger.insertLogDb(message);
-                sendToAll(JSON.stringify(fullMessage));
-                break;
-            }
-        }
-    }
-
-    functin (socket, sendToAll) {
-        return ;
-    }
-
-    dispose() {
-        this.socket = null;
-    }
-
-
-}
-
-
-/*
-var sockets = [];
-var listeners = [];
-var sockjsServer = null;
-var statInterval = 0;
-
-
-    statistic: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0},
-    statisticPrev: {listeners: 0, sockets: 0, in: 0, out: 0, dbIn: 0, avgDbIn: 0, dbRead: 0, avdDbRead: 0, dbError: 0, dbInRps: 0, dbReadRps: 0, dbErrorRps: 0, dbInTt: 0, dbReadTt: 0},
-
-    bmi: null,
-    dbReady: false,
-
-    connectionHandler: function (socket) {
-        socket.on(SocketLogger.Event.DATA, SocketLogger.getDefaultHandler(socket, SocketLogger.sendMessageToAll));
-        socket.on('close', function () {
-            if (listeners.indexOf(socket) > -1) listeners = _.without(listeners, socket);
-            sockets = _.without(sockets, socket);
-            SocketLogger.updateSockets();
-        });
-    },
-
-    sendInitData: function (socket) {
-        if (!SocketLogger.dbReady) return;
-        var clients = [];
-        var logs = {};
-
-        // update last diff
-        logger.lastDiff;
-
-
-        async.series([
-                function (cb) {
-                    var time = Date.now();
-                    SocketLogger.bmi.getCollection('clients').find({}).sort({'time': -1}).limit(100).toArray(
-                        function (e, results) {
-                            clients = results;
-                            if (!e) {
-                                SocketLogger.statistic.dbRead++;
-                                SocketLogger.statistic.dbReadTt += (Date.now() - time);
-                            }
-                            else {
-                                SocketLogger.statistic.dbError++;
-                            }
-
-                            cb(e, results);
-                        });
-                },
-                function (cb) {
-                    var l = 0;
-                    _.each(clients, function (client) {
-                        var time = Date.now();
-
-                        SocketLogger.bmi.getCollection('logs')
-                            .find({client_id: client.client_id})
-                            .sort({time: -1})
-                            .limit(100)
-                            .toArray(
-                            function (e, result) {
-                                logs[client.client_id] = result;
-                                if (!e) {
-                                    SocketLogger.statistic.dbRead++;
-                                }
-                                else {
-                                    SocketLogger.statistic.dbError++;
-                                }
-
-                                if (++l >= clients.length) {
-                                    SocketLogger.statistic.dbReadTt += (Date.now() - time);
-                                    cb(e, result);
-                                }
-                            });
-                    });
-
-                    if (!(clients && clients.length)) cb();
-                }
-            ],
-            function (e, result) {
-                logger.logWithDiff(' init db time, error ', e);
-                socket.write(JSON.stringify({type: SocketLogger.Event.COMMAND, data: {type: SocketLogger.CommandType.INIT, data: logs}}));
-            });
-    },
-
-    updateSockets: function () {
-        var data = _.map(sockets, function (socket) { return socket.info; });
-        SocketLogger.sendMessageToAll(JSON.stringify({type: SocketLogger.Event.DATA, data: {type: SocketLogger.DataType.SOCKETS, data: data}}));
-        SocketLogger.statistic.listeners = listeners.length;
-        SocketLogger.statistic.sockets = sockets.length;
-    },
-
-    sendMessageToAll: function (message) {
-        _.each(listeners, function (socket) {
-            SocketLogger.statistic.out++;
-            socket.write(message);
-        });
-    },
-
-    sendCommandToAll: function (message) {
-        _.each(listeners, function (socket) {
-            SocketLogger.statistic.out++;
-            socket.write(message);
-        });
-    },
-
-    insertLogDb: function (data) {
-        if (!SocketLogger.dbReady) return;
-        SocketLogger.bmi.getCollection('logs').insert(
-            data,
-            function (e, result) {
-                if (!e && result) SocketLogger.statistic.dbIn++;
-                else  SocketLogger.statistic.dbError++;
-
-                //console.log('Insert log result e, result : ', e, result);
-            }
-        );
-    },
-
-    insertOrUpdateClientDb: function (data) {
-        if (!SocketLogger.dbReady) return;
-        SocketLogger.bmi.getCollection('clients')
-            .update({client_id: data.client_id}, data, {upsert: true},
-            function (e, result) {
-                if (!e && result) SocketLogger.statistic.dbIn++;
-                else  SocketLogger.statistic.dbError++;
-            }
-        );
-    },
-
-    getDefaultHandler: function (socket, sendToAll) {
-        return function (draftMessage) {
-            SocketLogger.statistic.in++;
-            var fullMessage = JSON.parse(draftMessage);
-            var message = fullMessage.data;
-            var type = message ? message.type : null;
-            var clientId = socket.info ? socket.info.client_id : null;
-
-            switch (type) {
-                case SocketLogger.DataType.INFO:
-                {
-                    socket.info = message.data;
-                    clientId = socket.info.client_id;
-                    socket.info.time = Date.now();
-                    //data[clientId] = data[clientId]?data[clientId]:[];
-
-                    if (sockets.indexOf(socket) === -1) {
-                        var isListener = socket.info && socket.info.options && socket.info.options.listener;
-
-
-                        if (isListener) listeners.push(socket);
-                        sockets.push(socket);
-                        SocketLogger.insertOrUpdateClientDb(socket.info);
-                        SocketLogger.updateSockets();
-                        SocketLogger.sendInitData(socket);
-                    }
-                    break;
-                }
-                default:
-                {
-                    if (message) {
-                        message.client_id = clientId;
-                        message.time = Date.now();
-                    }
-                    //if (data[clientId]) data[clientId].push(message);
-                    SocketLogger.insertLogDb(message);
-                    sendToAll(JSON.stringify(fullMessage));
-                    break;
-                }
-            }
-        };
-    },
-    createStatistic: function () {
         var factor = Math.round(STAT_INTERVAL_MS / 1000);
         var s = SocketLogger.statistic;
-        var ps = SocketLogger.statisticPrev;
+        var ps = SocketLogger.statisticPrevious;
 
         function view(value) { return value.toFixed(1); }
-
         function avg(name) { return view((s[name + 'Tt'] - ps[name + 'Tt']) / ((s[name] - ps[name]) || 1)); };
         function rps(name) { return view((s[name] - ps[name]) / factor); }
 
@@ -364,36 +100,158 @@ var statInterval = 0;
         s.dbErrorRps = rps('dbError');
 
         console.log('Statistic: ' + JSON.stringify(s));
-
-        ps = _.clone(s);
+        SocketLogger.statisticPrevious = _.clone(s);
     }
-};
 
-function init(server) {
-    sockjsServer = sockjs.createServer(sockjs_opts);
-    sockjsServer.installHandlers(server, hander_opts);
-    sockjsServer.on('connection', SocketLogger.connectionHandler);
+    socketConnectionHandler(socket:any) {
+        var socketHandler = new SocketInternalHandler(socket, this.socketInfoHandler, this.socketDataHandler, null, this.socketCloseHandler);
+    }
 
-    var bmi = new bm.BasicMongo(config.mongodb);
-    bmi.on('connected', function () {
-        SocketLogger.bmi.init([{name: 'logs', keys: [{time: 1}, {client_id: 1}]}, {name: 'clients', keys: [{time: 1}, {client_id: 1}]}]);
-    });
+    socketInfoHandler(socket) {
+        var isntContainInSockets:boolean = this.sockets.indexOf(socket) === -1;
+        var isntContainInListeners:boolean = this.listeners.indexOf(socket) === -1;
+        if(isntContainInSockets) {
+            this.sockets.push(socket);
+            this.upsertData(socket.info, 'client_id', 'clients');
+        }
+        if(isntContainInListeners && socket.info.isListener){
+            this.listeners.push(socket);
+            this.socketListenerInit(socket);
+        }
 
-    bmi.on('error', function () {
+        this.updateSocketsInfo();
+    }
 
-    });
-
-    bmi.on('ready', function () {
-        SocketLogger.dbReady = true;
-        statInterval = setInterval(SocketLogger.createStatistic, STAT_INTERVAL_MS);
-    });
+    updateSocketsInfo() {
+        SocketLogger.statistic.sockets = this.sockets.length;
+        SocketLogger.statistic.listeners = this.listeners.length;
+    }
 
 
-    bmi.connect();
-    SocketLogger.bmi = bmi;
-    return null;
+    socketListenerInit(socket) {
+        this.bmi.getCollection('clients').count(function(e, result) {
+            var data = JSON.stringify({ type: SocketLogger.Event.COMMAND, data: { type: SocketLogger.CommandType.INIT, data: { clientsCount: result || -1 }}});
+            socket.write(data);
+        });
+
+        this.findData('clients', {}, {time: -1}, 0, 10, function(e, result) {
+            var data = JSON.stringify({ type: SocketLogger.Event.COMMAND, data: { type: SocketLogger.CommandType.INIT, data: { clients: result }}});
+            socket.write(data);
+        });
+
+        this.findData('logs', {}, {time: -1}, 0, 1000, function(e, result) {
+            var data = JSON.stringify({ type: SocketLogger.Event.COMMAND, data: { type: SocketLogger.CommandType.INIT, data: { logs: result }}});
+            socket.write(data);
+        });
+    }
+
+    socketCloseHandler(socket) {
+        if (this.listeners.indexOf(socket) > -1) this.listeners = _.without(this.listeners, socket);
+        this.sockets = _.without(this.sockets, socket);
+        this.upsertData(socket.info, 'client_id', 'clients');
+        socket.info = null;
+        this.updateSocketsInfo();
+    }
+
+    socketDataHandler(message) {
+        this.insertData(message, 'logs');
+        this.sendToListeners(message);
+    }
+
+    sendToListeners(message) {
+        var messageString = JSON.stringify(message);
+        _.each(this.listeners, function (socket) {
+            SocketLogger.statistic.out++;
+            socket.write(messageString);
+        });
+    }
+
+    upsertData(data, key, collection):void {
+        if (!this.dbReady) return;
+        var whereQueryObject = {};
+        whereQueryObject[key] = data[key];
+        this.bmi.getCollection(collection).update(whereQueryObject, data, {upsert: true}, this.upsertResultHandler);
+    }
+
+    insertData(data, collection):void {
+        if (!this.dbReady) return;
+        this.bmi.getCollection(collection).insert(data, this.insertResultHandler);
+    }
+
+    findData(collection:string, query:any, sort:any, from = 0, limit = 100, handler:Function = null, context:any = null):void {
+        this.bmi.getCollection(collection).find(query).sort(sort).skip(from).limit(limit).toArray(function(e, r) { if(handler) handler.call(context, e, r) });
+    }
+
+    upsertResultHandler(e, result):void {
+        if (!e && result) SocketLogger.statistic.dbIn++;
+        else  SocketLogger.statistic.dbError++;
+    }
+
+
+    insertResultHandler(e, result):void {
+        if (!e && result) SocketLogger.statistic.dbIn++;
+        else  SocketLogger.statistic.dbError++;
+    }
 }
-*/
 
-var app = new Application()
+class SocketInternalHandler {
+
+    constructor(public socket:any, public infoHandler:Function, public dataHandler:Function, public commandHandler:Function, public closeHandler:Function) {
+       _.bindAll(this, 'internalDataHandler', 'internalCloseHandler');
+       this.socket.on(SocketLogger.Event.DATA, this.internalDataHandler);
+       this.socket.on(SocketLogger.Event.CLOSE, this.internalCloseHandler);
+    }
+
+    internalDataHandler(draftMessage) {
+        SocketLogger.statistic.in++;
+        var fullMessage = JSON.parse(draftMessage);
+        var message = fullMessage.data;
+        var type = message ? message.type : null;
+        var socket = this.socket;
+
+        console.log('Message in type %s, sub %s, data %o ' , fullMessage.type , type, message);
+
+        var clientId = socket.info ? socket.info.client_id : null;
+
+        switch (type) {
+            case SocketLogger.DataType.INFO:
+            {
+                socket.info = message.data;
+                socket.info.active = true;
+                socket.info.time = Date.now();
+                socket.info.isListener = socket.info && socket.info.options && socket.info.options.listener;
+                this.infoHandler(socket);
+                break;
+            }
+            default:
+            {
+                if (_.isObject(message)) {
+                    message.client_id = clientId;
+                    message.time = Date.now();
+                }
+                this.dataHandler(message);
+                break;
+            }
+        }
+    }
+
+    internalCloseHandler() {
+        this.socket.info.active = false;
+        if(this.closeHandler) this.closeHandler(this.socket);
+        this.dispose();
+    }
+
+    dispose() {
+        this.socket = null;
+        this.infoHandler = null;
+        this.dataHandler = null;
+        this.commandHandler = null;
+        this.closeHandler = null;
+
+    }
+
+
+}
+
+var app = new Application();
 module.exports = app.init;
