@@ -27,6 +27,7 @@ var SocketLogger = {
     ERR: 'err'
   },
   CommandType: {
+    GET_CLIENTS: 'getClients',
     INIT: 'init',
     RELOAD: 'reload',
     NEW: 'new',

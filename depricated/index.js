@@ -1,4 +1,4 @@
-var SocketLogger = require('../depricated/socket.io/client/socket-logger').SocketLogger;
+var SocketLogger = require('socket.io/client/socket-logger').SocketLogger;
 var ti = 0;
 
 
@@ -7,6 +7,7 @@ function createSocket() {
   var mt = 0;
 
   var socket = SocketLogger.getSocketClient('http://95.85.38.224:4004', null, connectHandler);
+  //var socket = SocketLogger.getSocketClient('http://95.85.38.224:4004', null, connectHandler);
 
   function connectHandler(v) {
     emitTestMessage(v);

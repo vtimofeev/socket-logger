@@ -1,4 +1,4 @@
-var SocketLogger = require('../public/src/socket-logger.sockjs-client').SocketLogger;
+var SocketLogger = require('../public/src/socket-logger.client').SocketLogger;
 var ti = 0;
 var limitMessages = 1000000;
 var startTime  = Date.now();
@@ -8,7 +8,8 @@ function createSocket() {
   var i = 0;
   var mt = 0;
 
-  var socket = SocketLogger.getSocketClient('http://95.85.38.224:4004/ws', null, connectHandler);
+  var socket = SocketLogger.getSocketClient('http://localhost:4004/ws', null, connectHandler);
+  //var socket = SocketLogger.getSocketClient('http://95.85.38.224:4004/ws', null, connectHandler);
 
   function connectHandler(v) {
     emitTestMessage(v);

@@ -22,6 +22,7 @@ var SocketLogger =  {
     ERR: 'err'
   },
   CommandType: {
+    GET_CLIENTS: 'getClients',
     RELOAD: 'reload',
     NEW: 'new',
     INIT: 'init',
@@ -55,7 +56,7 @@ var SocketLogger =  {
   getSocketClient: function (connectionString, options, connectHandler, messageHandler, commandHandler, opt_clientId) {
     'use strict';
     var session_id = (Math.round(Math.random()*1000000000) + Date.now()).toString(36);
-    var client_id = (opt_clientId || SocketLogger.getClientId()) + ':' + session_id;
+    var client_id = (opt_clientId || SocketLogger.getClientId());
     var options = options || { listener: false };
     var stat = { in: 0, out: 0 };
     var isClosed = false;

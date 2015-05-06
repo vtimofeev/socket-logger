@@ -22,12 +22,29 @@ header .clean {
   padding: 8px;
   overflow: auto;
 }
-.sockets ul > li {
-  height: 32px;
-  line-height: 32px;
+.sockets div > div {
+  cursor: pointer;
+  line-height: 24px;
+  color: #333;
+}
+.sockets div > div:hover {
+  color: #006;
 }
 .sockets .selected {
   background-color: #0072c6;
+}
+.sockets .active {
+  font-weight: bold;
+}
+.fromTo {
+  cursor: pointer;
+  font-size: 13px;
+}
+.fromTo:hover {
+  color: #006;
+}
+.fromTo.selected {
+  font-weight: bold;
 }
 .logContainer {
   margin-top: 12px;

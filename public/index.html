@@ -11,18 +11,20 @@
 </head>
 
 <link rel="stylesheet" href="css/index.css">
-
 <body>
 
-<div class="root"><div class="inner">
-    1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>1<br/>
-</div></div>
+<div class="root"><div class="inner"></div></div>
 
 <header>
-    Socket <span class="socketId"></span> <span class="socketStatus"></span> <button class="clean">Clean all server data</button>
+    Socket <span class="socketId"></span> <span class="socketStatus"></span>
+    <div><button class="socketsButton">Sockets</button> <button class="testButton">Test</button> <button class="cleanButton">Clean</button></div>
 </header>
 
-<div class="sockets"></div>
+<div class="socketsContainer">
+    <span class="clientsFromTo"></span>
+    <div class="sockets"></div>
+</div>
+
 <div class="logContainer"></div>
 
 <script src="libs/zepto.js"></script>

@@ -26,19 +26,19 @@ var SocketLogger = {
     DataType: {
         INFO: 'info', /* Client to server : startup */
         SOCKETS: 'sockets', /* Server to client */
-        INIT: 'init',/* Server to client */
         /* Both */
         LOG: 'log',
         WARN: 'warn',
         ERR: 'err'
     },
     CommandType: {
+        GET_CLIENTS: 'getClients', /* Client to server */
         RELOAD: 'reload', /* Server to client, reload */
         CLEAN: 'clean', /* Client to server - server to all clients that listen this channel : define client_id or null to listen */
         HISTORY: 'history', /* Client to server : get history, type: clients/logs, data: 0 to all history */
         LISTEN: 'listenToServer', /* Client to server : define client_id or null to listen */
-        INIT: 'initToClient', /* Server to client, active clients */
-        STAT: 'statToClient' /* Server to client (listener) : update stat */
+        INIT: 'init', /* Server to client, active clients */
+        STAT: 'stat' /* Server to client (listener) : update stat */
     },
     COLLECTIONS: {
         LOGS: 'logs',
@@ -58,7 +58,7 @@ class Application {
     statInterval;
 
     constructor() {
-        _.bindAll(this, 'init', 'socketConnectionHandler' , 'createStatistic', 'socketInfoHandler', 'socketCloseHandler', 'socketDataHandler', 'sendToListeners', 'upsertData', 'insertData', 'findData');
+        _.bindAll(this, 'init', 'socketConnectionHandler' , 'createStatistic', 'socketInfoHandler', 'socketCloseHandler', 'socketDataHandler', 'socketCommandHandler', 'sendToListeners', 'upsertData', 'insertData', 'findData');
     }
 
     init(server) {
@@ -104,10 +104,12 @@ class Application {
     }
 
     socketConnectionHandler(socket:any) {
-        var socketHandler = new SocketInternalHandler(socket, this.socketInfoHandler, this.socketDataHandler, null, this.socketCloseHandler);
+        var socketHandler = new SocketInternalHandler(socket, this.socketInfoHandler, this.socketDataHandler, this.socketCommandHandler, this.socketCloseHandler);
     }
 
     socketInfoHandler(socket) {
+        if (!this.dbReady) return;
+
         var isntContainInSockets:boolean = this.sockets.indexOf(socket) === -1;
         var isntContainInListeners:boolean = this.listeners.indexOf(socket) === -1;
         if(isntContainInSockets) {
@@ -127,6 +129,16 @@ class Application {
         SocketLogger.statistic.listeners = this.listeners.length;
     }
 
+    socketCommandHandler(message, socket) {
+        switch (message.type) {
+            case SocketLogger.CommandType.GET_CLIENTS:
+                this.findData('clients', {}, { time: -1} , message.data, 10, function(e, result) {
+                    var data = JSON.stringify({ type: SocketLogger.Event.COMMAND, data: { type: SocketLogger.CommandType.INIT, data: { clients: result }}});
+                    socket.write(data);
+                });
+                break;
+        }
+    }
 
     socketListenerInit(socket) {
         this.bmi.getCollection('clients').count(function(e, result) {
@@ -159,7 +171,7 @@ class Application {
     }
 
     sendToListeners(message) {
-        var messageString = JSON.stringify(message);
+        var messageString = JSON.stringify({ type: SocketLogger.Event.DATA, data: message });
         _.each(this.listeners, function (socket) {
             SocketLogger.statistic.out++;
             socket.write(messageString);
@@ -179,7 +191,7 @@ class Application {
     }
 
     findData(collection:string, query:any, sort:any, from = 0, limit = 100, handler:Function = null, context:any = null):void {
-        this.bmi.getCollection(collection).find(query).sort(sort).skip(from).limit(limit).toArray(function(e, r) { if(handler) handler.call(context, e, r) });
+        this.bmi.getCollection(collection).find(query).sort(sort).skip(from || 0).limit(limit || 100).toArray(function(e, r) { if(handler) handler.call(context, e, r) });
     }
 
     upsertResultHandler(e, result):void {
@@ -195,7 +207,6 @@ class Application {
 }
 
 class SocketInternalHandler {
-
     constructor(public socket:any, public infoHandler:Function, public dataHandler:Function, public commandHandler:Function, public closeHandler:Function) {
        _.bindAll(this, 'internalDataHandler', 'internalCloseHandler');
        this.socket.on(SocketLogger.Event.DATA, this.internalDataHandler);
@@ -212,26 +223,30 @@ class SocketInternalHandler {
         console.log('Message in type %s, sub %s, data %o ' , fullMessage.type , type, message);
 
         var clientId = socket.info ? socket.info.client_id : null;
+        if (clientId && _.isObject(message)) {
+            message.client_id = clientId;
+            message.time = Date.now();
+        }
 
-        switch (type) {
-            case SocketLogger.DataType.INFO:
-            {
-                socket.info = message.data;
-                socket.info.active = true;
-                socket.info.time = Date.now();
-                socket.info.isListener = socket.info && socket.info.options && socket.info.options.listener;
-                this.infoHandler(socket);
-                break;
-            }
-            default:
-            {
-                if (_.isObject(message)) {
-                    message.client_id = clientId;
-                    message.time = Date.now();
+        if(fullMessage.type === SocketLogger.Event.DATA) {
+            switch (type) {
+                case SocketLogger.DataType.INFO:
+                {
+                    socket.info = message.data;
+                    socket.info.active = true;
+                    socket.info.time = Date.now();
+                    socket.info.isListener = socket.info && socket.info.options && socket.info.options.listener;
+                    this.infoHandler(socket);
+                    break;
                 }
-                this.dataHandler(message);
-                break;
+                default:
+                {
+                    this.dataHandler(message);
+                    break;
+                }
             }
+        } else {
+            this.commandHandler(message, socket);
         }
     }
 
@@ -249,8 +264,6 @@ class SocketInternalHandler {
         this.closeHandler = null;
 
     }
-
-
 }
 
 var app = new Application();

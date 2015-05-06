@@ -1,9 +1,9 @@
 var _ = require('underscore');
 var sockjs = require('sockjs');
-var bm = require('./libs/basic-mongo');
-var config = require('./config/default');
+var bm = require('./../libs/basic-mongo');
+var config = require('./../config/default');
 var async = require('async');
-var logNS = require('./libs/basic-log');
+var logNS = require('./../libs/basic-log');
 var logger = new logNS.BasicLog('SocketLogger');
 
 var MAX_COLLECTION_SIZE = 1000;

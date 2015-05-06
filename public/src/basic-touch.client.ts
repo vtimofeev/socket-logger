@@ -137,7 +137,9 @@ module BasicTouch {
 
         internalTouchHandler(e:Event, state:string, touch:Touch) {
             _.each([Manager.Event.Pan], function(type) {
-                window['log']('ine: ' , e.type, e.touches[0].clientX);
+                var instanceOfTouch = e.touches ? e.touches[0]: e.pointers ? e.pointers[0] : e;
+
+                window['log']('ine: ' , e.type, instanceOfTouch.clientX);
                 if (touch.isListenedType(type)) touch.sendEvent(type + state, e);
             });
         }
@@ -150,6 +152,13 @@ module BasicTouch {
         }
 
         static browserSpecificEvents():any {
+            return {
+                start: 'pointerdown',
+                move: 'pointermove',
+                end: 'pointerup',
+                cancel: 'pointercancel'
+            };
+
             return {
                 start: 'touchstart',
                 move: 'touchmove',

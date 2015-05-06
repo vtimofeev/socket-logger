@@ -21,19 +21,19 @@ var SocketLogger = {
     DataType: {
         INFO: 'info',
         SOCKETS: 'sockets',
-        INIT: 'init',
         /* Both */
         LOG: 'log',
         WARN: 'warn',
         ERR: 'err'
     },
     CommandType: {
+        GET_CLIENTS: 'getClients',
         RELOAD: 'reload',
         CLEAN: 'clean',
         HISTORY: 'history',
         LISTEN: 'listenToServer',
-        INIT: 'initToClient',
-        STAT: 'statToClient' /* Server to client (listener) : update stat */
+        INIT: 'init',
+        STAT: 'stat' /* Server to client (listener) : update stat */
     },
     COLLECTIONS: {
         LOGS: 'logs',
@@ -49,7 +49,7 @@ var Application = (function () {
         this.sockjsServer = null;
         this.bmi = null;
         this.dbReady = false;
-        _.bindAll(this, 'init', 'socketConnectionHandler', 'createStatistic', 'socketInfoHandler', 'socketCloseHandler', 'socketDataHandler', 'sendToListeners', 'upsertData', 'insertData', 'findData');
+        _.bindAll(this, 'init', 'socketConnectionHandler', 'createStatistic', 'socketInfoHandler', 'socketCloseHandler', 'socketDataHandler', 'socketCommandHandler', 'sendToListeners', 'upsertData', 'insertData', 'findData');
     }
     Application.prototype.init = function (server) {
         var t = this;
@@ -86,9 +86,11 @@ var Application = (function () {
         SocketLogger.statisticPrevious = _.clone(s);
     };
     Application.prototype.socketConnectionHandler = function (socket) {
-        var socketHandler = new SocketInternalHandler(socket, this.socketInfoHandler, this.socketDataHandler, null, this.socketCloseHandler);
+        var socketHandler = new SocketInternalHandler(socket, this.socketInfoHandler, this.socketDataHandler, this.socketCommandHandler, this.socketCloseHandler);
     };
     Application.prototype.socketInfoHandler = function (socket) {
+        if (!this.dbReady)
+            return;
         var isntContainInSockets = this.sockets.indexOf(socket) === -1;
         var isntContainInListeners = this.listeners.indexOf(socket) === -1;
         if (isntContainInSockets) {
@@ -104,6 +106,16 @@ var Application = (function () {
     Application.prototype.updateSocketsInfo = function () {
         SocketLogger.statistic.sockets = this.sockets.length;
         SocketLogger.statistic.listeners = this.listeners.length;
+    };
+    Application.prototype.socketCommandHandler = function (message, socket) {
+        switch (message.type) {
+            case SocketLogger.CommandType.GET_CLIENTS:
+                this.findData('clients', {}, { time: -1 }, message.data, 10, function (e, result) {
+                    var data = JSON.stringify({ type: SocketLogger.Event.COMMAND, data: { type: SocketLogger.CommandType.INIT, data: { clients: result } } });
+                    socket.write(data);
+                });
+                break;
+        }
     };
     Application.prototype.socketListenerInit = function (socket) {
         this.bmi.getCollection('clients').count(function (e, result) {
@@ -132,7 +144,7 @@ var Application = (function () {
         this.sendToListeners(message);
     };
     Application.prototype.sendToListeners = function (message) {
-        var messageString = JSON.stringify(message);
+        var messageString = JSON.stringify({ type: SocketLogger.Event.DATA, data: message });
         _.each(this.listeners, function (socket) {
             SocketLogger.statistic.out++;
             socket.write(messageString);
@@ -155,7 +167,7 @@ var Application = (function () {
         if (limit === void 0) { limit = 100; }
         if (handler === void 0) { handler = null; }
         if (context === void 0) { context = null; }
-        this.bmi.getCollection(collection).find(query).sort(sort).skip(from).limit(limit).toArray(function (e, r) { if (handler)
+        this.bmi.getCollection(collection).find(query).sort(sort).skip(from || 0).limit(limit || 100).toArray(function (e, r) { if (handler)
             handler.call(context, e, r); });
     };
     Application.prototype.upsertResultHandler = function (e, result) {
@@ -191,25 +203,30 @@ var SocketInternalHandler = (function () {
         var socket = this.socket;
         console.log('Message in type %s, sub %s, data %o ', fullMessage.type, type, message);
         var clientId = socket.info ? socket.info.client_id : null;
-        switch (type) {
-            case SocketLogger.DataType.INFO:
-                {
-                    socket.info = message.data;
-                    socket.info.active = true;
-                    socket.info.time = Date.now();
-                    socket.info.isListener = socket.info && socket.info.options && socket.info.options.listener;
-                    this.infoHandler(socket);
-                    break;
-                }
-            default:
-                {
-                    if (_.isObject(message)) {
-                        message.client_id = clientId;
-                        message.time = Date.now();
+        if (clientId && _.isObject(message)) {
+            message.client_id = clientId;
+            message.time = Date.now();
+        }
+        if (fullMessage.type === SocketLogger.Event.DATA) {
+            switch (type) {
+                case SocketLogger.DataType.INFO:
+                    {
+                        socket.info = message.data;
+                        socket.info.active = true;
+                        socket.info.time = Date.now();
+                        socket.info.isListener = socket.info && socket.info.options && socket.info.options.listener;
+                        this.infoHandler(socket);
+                        break;
                     }
-                    this.dataHandler(message);
-                    break;
-                }
+                default:
+                    {
+                        this.dataHandler(message);
+                        break;
+                    }
+            }
+        }
+        else {
+            this.commandHandler(message, socket);
         }
     };
     SocketInternalHandler.prototype.internalCloseHandler = function () {
