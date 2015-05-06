@@ -28,6 +28,16 @@ var BasicTouch;
             if (event)
                 this.startEvents.push(event);
         };
+        Object.defineProperty(Touch.prototype, "isInEvent", {
+            get: function () {
+                return !!this.startEvents;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Touch.prototype.endEvent = function (event) {
+            this.startEvents = null;
+        };
         Touch.prototype.sendEvent = function (name, se) {
             var e = document.createEvent('Event');
             e.initEvent(name, true, true);
@@ -71,8 +81,11 @@ var BasicTouch;
             this.touches = [];
             this.startedTouches = [];
             this.eventMap = null;
+            Manager.support.pointerEvents = window['onpointermove'] !== undefined;
+            Manager.support.maxTouchPoints = navigator.maxTouchPoints || 0;
             this.eventMap = Manager.browserSpecificEvents();
             window.addEventListener(this.eventMap.end, this.windowEndTouchHandler, false);
+            window.addEventListener(this.eventMap.cancel, this.windowEndTouchHandler, false);
         }
         Manager.prototype.$get = function ($element, eventTypes) {
             if (eventTypes === void 0) { eventTypes = 'pan swipe pinch rotate'; }
@@ -110,16 +123,19 @@ var BasicTouch;
             }, false);
             touch.element.addEventListener(this.eventMap.move, function (e) {
                 var state = Manager.EventState.Move;
-                t.internalTouchHandler(e, state, touch);
+                if (touch.isInEvent)
+                    t.internalTouchHandler(e, state, touch);
             }, false);
             touch.element.addEventListener(this.eventMap.end, function (e) {
                 var state = Manager.EventState.End;
                 t.internalTouchHandler(e, state, touch);
+                touch.endEvent(e);
             }, false);
         };
         Manager.prototype.internalTouchHandler = function (e, state, touch) {
             _.each([Manager.Event.Pan], function (type) {
                 var instanceOfTouch = e.touches ? e.touches[0] : e.pointers ? e.pointers[0] : e;
+                console.log(e);
                 window['log']('ine: ', e.type, instanceOfTouch.clientX);
                 if (touch.isListenedType(type))
                     touch.sendEvent(type + state, e);
@@ -131,19 +147,17 @@ var BasicTouch;
             return '';
         };
         Manager.browserSpecificEvents = function () {
-            return {
-                start: 'pointerdown',
-                move: 'pointermove',
-                end: 'pointerup',
-                cancel: 'pointercancel'
-            };
-            return {
-                start: 'touchstart',
-                move: 'touchmove',
-                end: 'touchend',
-                cancel: 'touchcancel'
-            };
+            if (Manager.support.pointerEvents) {
+                return { start: 'pointerdown', move: 'pointermove', end: 'pointerup', cancel: 'pointercancel' };
+            }
+            else if (Manager.support.maxTouchPoints === 0) {
+                return { start: 'mousedown', move: 'mousemove', end: 'mouseup', cancel: 'mousecancel' };
+            }
+            else {
+                return { start: 'touchstart', move: 'touchmove', end: 'touchend', cancel: 'touchcancel' };
+            }
         };
+        Manager.support = { pointerEvents: false, maxTouchPoints: 0 };
         Manager.EventState = {
             Start: 'start',
             Move: 'move',
