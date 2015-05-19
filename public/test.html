@@ -71,9 +71,10 @@
         btm.listenTypes('pan');
 
         $root.bind('panstart panmove panend', function(e) {
-           console.log('Pan events ' ,  e.type);
+           console.log('Pan events ' ,  e.type, JSON.stringify(e.diff));
             socket.log(e.type, JSON.stringify(e.diff));
-            $touch.css({left: e.screenX + 'px', top: e.screenY + 'px'});
+
+            $touch.css({left: e.clientX + 'px', top: e.clientY + 'px'});
 
         });
 

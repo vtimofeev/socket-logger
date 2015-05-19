@@ -46,7 +46,6 @@ export class BasicMongo extends events.EventEmitter {
         mongodb.MongoClient.connect(this.url, {native_parser:true}, this.connectHandler);
     }
 
-
     getClient():mongodb.Db {
         return this.defaultDb;
     }

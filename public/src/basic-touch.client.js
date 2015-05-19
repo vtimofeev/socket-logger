@@ -6,8 +6,9 @@ var BasicTouch;
     var Touch = (function () {
         function Touch(element) {
             this.element = null;
+            this.startPointers = null;
+            this.lastDifferences = null;
             this.dispatchedEvents = null;
-            this.startEvents = null;
             if (!element)
                 this.errorHandler('Cant create touch instance');
             this.element = element;
@@ -23,41 +24,51 @@ var BasicTouch;
             this.dispatchedEvents = (this.dispatchedEvents || []).concat(types.split(' '));
             return this;
         };
-        Touch.prototype.startEvent = function (event) {
-            this.startEvents = this.startEvents || [];
-            if (event)
-                this.startEvents.push(event);
-        };
         Object.defineProperty(Touch.prototype, "isInEvent", {
             get: function () {
-                return !!this.startEvents;
+                return !!this.startPointers;
             },
             enumerable: true,
             configurable: true
         });
-        Touch.prototype.endEvent = function (event) {
-            this.startEvents = null;
+        Touch.prototype.getPointers = function (event) {
+            return event.touches || event.pointers || [event];
+        };
+        Touch.prototype.getPointerId = function (pointer) {
+            return pointer.id || pointer.identifier;
+        };
+        Touch.prototype.startEventHandler = function (event) {
+            this.startPointers = this.startPointers || {};
+            var pointers = this.getPointers(event);
+            _.each(pointers, function (pointer) {
+                var id = this.getPointerId(pointer); // set default for mouse
+                this.startPointers[id] = { id: id, clientX: pointer.clientX, clientY: pointer.clientY };
+            }, this);
+        };
+        Touch.prototype.endEventHandler = function (event) {
+            this.startPointers = null;
         };
         Touch.prototype.sendEvent = function (name, se) {
             var e = document.createEvent('Event');
             e.initEvent(name, true, true);
-            e['sourceEvent'] = se;
-            var difference = this.getDifferenceBy(se, this.startEvents && this.startEvents[0] ? this.startEvents[0] : null);
-            e['diff'] = difference;
-            _.extend(e, difference);
+            this.lastDifferences = this.getDifferenceFromStart(this.getPointers(se), this.startPointers);
+            e[Manager.EventFields.SourceEvent] = se;
+            e[Manager.EventFields.FirstDifference] = this.lastDifferences && this.lastDifferences.length ? this.lastDifferences[0] : null;
+            e[Manager.EventFields.Difference] = this.lastDifferences;
+            _.extend(e, e[Manager.EventFields.FirstDifference]);
             console.log(e);
             this.element.dispatchEvent(e);
         };
-        Touch.prototype.getDifferenceBy = function (currentEvent, startEvent) {
-            var result = { clientX: 0, clientY: 0, screenX: 0, screenY: 0, pageX: 0, pageY: 0, radiusX: 0, radiusY: 0 };
-            var startEventData = (startEvent && startEvent.touches && startEvent.touches.length) ? startEvent.touches[0] : startEvent;
-            var currentEventData = (currentEvent && currentEvent.touches && currentEvent.touches.length) ? currentEvent.touches[0] : currentEvent;
-            window['log']('Get diff ', currentEventData.clientX, startEventData.clientX, currentEvent.type, startEvent.type, startEventData === currentEventData);
-            if (!startEventData || !currentEventData)
+        Touch.prototype.getDifferenceFromStart = function (pointers, startPointers) {
+            var result = [];
+            if (!pointers || !startPointers)
                 return result;
-            Touch.metrics.forEach(function (m) {
-                result[m] = currentEventData[m] - startEventData[m];
-            });
+            _.each(pointers, function (pointer) {
+                var id = this.getPointerId(pointer);
+                var startPointer = startPointers[id];
+                var pr = { id: id, clientX: Math.round(pointer['clientX'] - startPointer['clientX']), clientY: Math.round(pointer['clientY'] - startPointer['clientY']) };
+                result.push(pr);
+            }, this);
             return result;
         };
         Touch.prototype.errorHandler = function (value) {
@@ -118,7 +129,7 @@ var BasicTouch;
             var t = this;
             touch.element.addEventListener(this.eventMap.start, function (e) {
                 var state = Manager.EventState.Start;
-                touch.startEvent(e);
+                touch.startEventHandler(e);
                 t.internalTouchHandler(e, state, touch);
             }, false);
             touch.element.addEventListener(this.eventMap.move, function (e) {
@@ -129,12 +140,14 @@ var BasicTouch;
             touch.element.addEventListener(this.eventMap.end, function (e) {
                 var state = Manager.EventState.End;
                 t.internalTouchHandler(e, state, touch);
-                touch.endEvent(e);
+                touch.endEventHandler(e);
             }, false);
         };
         Manager.prototype.internalTouchHandler = function (e, state, touch) {
             _.each([Manager.Event.Pan], function (type) {
-                var instanceOfTouch = e.touches ? e.touches[0] : e.pointers ? e.pointers[0] : e;
+                var touches = e.touches;
+                var pointers = e.pointers;
+                var instanceOfTouch = touches ? touches[0] : pointers ? pointers[0] : e;
                 console.log(e);
                 window['log']('ine: ', e.type, instanceOfTouch.clientX);
                 if (touch.isListenedType(type))
@@ -158,6 +171,12 @@ var BasicTouch;
             }
         };
         Manager.support = { pointerEvents: false, maxTouchPoints: 0 };
+        Manager.EventFields = {
+            FirstDifference: 'fd',
+            SecondDifference: 'sd',
+            Difference: 'difference',
+            SourceEvent: 'sourceEvent'
+        };
         Manager.EventState = {
             Start: 'start',
             Move: 'move',
